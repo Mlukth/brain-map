@@ -105,7 +105,8 @@ body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color
     </div>
   </div>
 
-  <div class="chain-view" @click="closeCtxMenu">
+  <div class="chain-view" @click="closeCtxMenu" @wheel.prevent="onZoom" @mousedown="onPanStart" @mousemove="onPanMove" @mouseup="onPanEnd" @mouseleave="onPanEnd">
+    <div :style="{transform:'scale('+zoom+') translate('+panX+'px,'+panY+'px)',transformOrigin:'0 0'}">
     <!-- 主链 -->
     <div class="chain-row">
       <div class="chain-label">主链</div>
@@ -150,6 +151,7 @@ body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color
     </div>
 
     <div v-if="state.nodes.length === 0" class="empty-state">🧠 等待 Claude Code 会话开始...</div>
+    </div>
   </div>
 
   <div class="bottombar">
@@ -215,6 +217,8 @@ createApp({
     const state = ref({ nodes:[], links:[], chain:[], planRoots:[], taskLines:{}, meta:{cursor:null,currentPlanIndex:0} })
     const online = ref(false)
     const lastEvent = ref('等待连接...')
+    const zoom = ref(1); const panX = ref(0); const panY = ref(0)
+    let panning=false, panStartX=0, panStartY=0, spaceDown=false
     const auditEnabled = ref(false)
     const ctxMenu = ref({show:false,nodeId:'',x:0,y:0})
     const editNode = ref({})
@@ -378,7 +382,16 @@ createApp({
     })
     onUnmounted(() => { if(es) es.close(); if(auditTimer) clearInterval(auditTimer) })
 
+    function onZoom(e) { zoom.value = Math.max(.3, Math.min(3, zoom.value - e.deltaY*.001)) }
+    function onPanStart(e) { if(spaceDown){panning=true;panStartX=e.clientX-panX.value;panStartY=e.clientY-panY.value;e.preventDefault()}}
+    function onPanMove(e) { if(panning){panX.value=e.clientX-panStartX;panY.value=e.clientY-panStartY}}
+    function onPanEnd() { panning=false }
+    function onKeyDown(e) { if(e.code==='Space'){spaceDown=true;e.preventDefault()} }
+    function onKeyUp(e) { if(e.code==='Space'){spaceDown=false;panning=false} }
+    document.addEventListener('keydown',onKeyDown); document.addEventListener('keyup',onKeyUp)
+
     return { state, online, lastEvent, auditEnabled, ctxMenu, editNode, modals, auditCmd, auditCountdown, cursorName,
+      zoom, panX, panY, onZoom, onPanStart, onPanMove, onPanEnd,
       getNode, nodeName, statusIcon, beadClass, shouldExpandPlan, getPlanSubtree, reportText,
       showCtxMenu, closeCtxMenu, ctxEdit, ctxReport, ctxMark, ctxTogglePin, ctxSaveNode, ctxDelete, openReport,
       saveEdit, toggleAudit, auditAnswer, archiveAll, resetAll }
