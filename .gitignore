@@ -1,0 +1,4 @@
+node_modules/
+brain-map-state-*.json
+*.log
+.env

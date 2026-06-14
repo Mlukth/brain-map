@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Brain Map v2</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color:#e0e0e0;overflow:hidden;height:100vh;display:flex;flex-direction:column}
+.topbar{height:40px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:#161b22;border-bottom:1px solid #30363d;flex-shrink:0}
+.topbar-title{font-size:14px;font-weight:700}
+.topbar-right{display:flex;align-items:center;gap:10px}
+.status-dot{width:8px;height:8px;border-radius:4px;display:inline-block}
+.status-dot.online{background:#3fb950}.status-dot.offline{background:#555}
+.status-text{font-size:11px;color:#8b949e}
+
+/* 审计开关 */
+.audit-toggle{display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none}
+.audit-toggle input{display:none}
+.audit-switch{width:36px;height:20px;background:#30363d;border-radius:10px;position:relative;transition:background .2s}
+.audit-switch::after{content:'';width:16px;height:16px;background:#8b949e;border-radius:8px;position:absolute;top:2px;left:2px;transition:all .2s}
+.audit-toggle input:checked+.audit-switch{background:#238636}
+.audit-toggle input:checked+.audit-switch::after{background:#fff;left:18px}
+.audit-label{font-size:11px;color:#8b949e}
+
+/* 按钮 */
+.btn{padding:4px 12px;border-radius:6px;border:1px solid #30363d;background:#21262d;color:#c9d1d9;font-size:11px;cursor:pointer;transition:all .15s}
+.btn:hover{background:#30363d;border-color:#58a6ff}
+.btn.danger{color:#f85149}.btn.danger:hover{background:#3d1f1f;border-color:#f85149}
+
+#chart{flex:1;width:100%}
+.bottombar{height:32px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:#161b22;border-top:1px solid #30363d;flex-shrink:0;font-size:10px;color:#8b949e}
+.event-log{flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.node-count{margin-left:16px;flex-shrink:0}
+
+/* 右键菜单 */
+.context-menu{position:fixed;background:#1c2128;border:1px solid #30363d;border-radius:8px;padding:4px 0;z-index:1000;display:none;min-width:180px;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.context-menu .item{padding:6px 14px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .1s}
+.context-menu .item:hover{background:#30363d}
+.context-menu .divider{height:1px;background:#30363d;margin:4px 0}
+
+/* 模态框遮罩 */
+.modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.6);z-index:2000;display:none;align-items:center;justify-content:center}
+.modal-overlay.show{display:flex}
+.modal-box{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:24px;max-width:600px;max-height:80vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.6)}
+.modal-box h3{margin-bottom:12px;font-size:16px}
+.modal-box .field{margin-bottom:12px}
+.modal-box .field label{display:block;font-size:11px;color:#8b949e;margin-bottom:4px}
+.modal-box .field input,.modal-box .field textarea{width:100%;padding:8px 12px;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#e0e0e0;font-size:13px;font-family:inherit}
+.modal-box .field textarea{min-height:120px;resize:vertical}
+.modal-box .report-body{background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:16px;font-size:13px;line-height:1.6;white-space:pre-wrap;max-height:400px;overflow-y:auto}
+.modal-box .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+
+/* 审计确认弹窗 */
+.audit-modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#161b22;border:2px solid #f85149;border-radius:12px;padding:20px 28px;z-index:3000;display:none;box-shadow:0 12px 40px rgba(248,81,73,.3);min-width:360px}
+.audit-modal.show{display:block}
+.audit-modal h4{color:#f85149;margin-bottom:8px;font-size:14px}
+.audit-modal .desc{margin-bottom:8px;font-size:12px;color:#8b949e}
+.audit-modal .cmd{background:#0d1117;padding:10px;border-radius:6px;font-family:monospace;font-size:11px;margin-bottom:14px;word-break:break-all;max-height:80px;overflow-y:auto}
+.audit-modal .countdown{font-size:10px;color:#8b949e;text-align:center;margin-top:6px}
+.audit-modal .btns{display:flex;gap:8px;justify-content:flex-end}
+</style>
+</head>
+<body>
+<div class="topbar">
+<span class="topbar-title">🧠 Brain Map v2</span>
+<div class="topbar-right">
+<label class="audit-toggle" title="审计开关：开启后改图结构需确认">
+  <input type="checkbox" id="auditSwitch" onchange="toggleAudit(this.checked)">
+  <span class="audit-switch"></span>
+  <span class="audit-label">审计</span>
+</label>
+<button class="btn" onclick="saveValuable()" title="保存有价值节点到归档">💾 归档</button>
+<button class="btn danger" onclick="resetAll()" title="清空所有节点">🗑️ 清空</button>
+<span class="status-dot offline" id="dot"></span>
+<span class="status-text" id="status">离线</span>
+</div>
+</div>
+<div id="chart"></div>
+<div class="bottombar">
+<span class="event-log" id="log">等待连接...</span>
+<span class="node-count" id="stats"></span>
+</div>
+
+<!-- 右键菜单 -->
+<div class="context-menu" id="ctxMenu">
+  <div class="item" onclick="ctxAction('editNotes')">✏️ 编辑备注</div>
+  <div class="item" onclick="ctxAction('viewReport')">📋 查看报告</div>
+  <div class="divider"></div>
+  <div class="item" onclick="ctxAction('markDone')">✅ 标记完成</div>
+  <div class="item" onclick="ctxAction('markFailed')">❌ 标记失败</div>
+  <div class="item" onclick="ctxAction('togglePin')">📌 置顶/取消</div>
+  <div class="divider"></div>
+  <div class="item" onclick="ctxAction('saveNode')">💾 保存此节点</div>
+  <div class="item danger" onclick="ctxAction('deleteNode')">🗑️ 删除节点</div>
+</div>
+
+<!-- 备注编辑弹窗 -->
+<div class="modal-overlay" id="notesModal">
+  <div class="modal-box">
+    <h3 id="notesTitle">编辑节点</h3>
+    <div class="field"><label>节点名</label><input id="notesName"></div>
+    <div class="field"><label>备注</label><textarea id="notesText" placeholder="备注内容..."></textarea></div>
+    <div class="field"><label>成功标准</label><input id="notesCriteria" placeholder="例如: endpoint返回200，延迟<2s"></div>
+    <div class="btns">
+      <button class="btn" onclick="closeModal('notesModal')">取消</button>
+      <button class="btn" onclick="saveNotes()" style="background:#238636;border-color:#238636">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 节点报告弹窗 -->
+<div class="modal-overlay" id="reportModal">
+  <div class="modal-box">
+    <h3 id="reportTitle">节点报告</h3>
+    <div class="report-body" id="reportBody"></div>
+    <div class="btns">
+      <button class="btn" onclick="closeModal('reportModal')">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- 审计确认弹窗 -->
+<div class="audit-modal" id="auditModal">
+  <h4>⚠️ 脑图审计确认</h4>
+  <div class="desc" id="auditDesc">Claude 请求执行以下操作：</div>
+  <div class="cmd" id="auditCmd"></div>
+  <div class="btns">
+    <button class="btn danger" onclick="auditAnswer(false)">❌ 拒绝</button>
+    <button class="btn" onclick="auditAnswer(true)" style="background:#238636;border-color:#238636">✅ 允许</button>
+  </div>
+  <div class="countdown" id="auditCountdown"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/echarts@6.0.0/dist/echarts.min.js"></script>
+<script>
+var chart = echarts.init(document.getElementById('chart'), 'dark')
+var CHAIN_X = 260, CHAIN_Y = 280, BRANCH_GAP = 130
+var graphData = null, ctxNodeId = null, auditTimer = null
+
+function buildCategories(taskLines) {
+  var cats = []
+  for (var k in taskLines) {
+    var tl = taskLines[k]
+    cats.push({ name: tl.name, itemStyle: { color: tl.color } })
+  }
+  return cats
+}
+
+function assignCategory(nodes, taskLines) {
+  var keys = Object.keys(taskLines || {})
+  return nodes.map(function(n) {
+    var idx = keys.indexOf(n.taskLine)
+    return Object.assign({}, n, { category: idx >= 0 ? idx : 0 })
+  })
+}
+
+function chainLayout(data) {
+  var nodes = data.nodes, links = data.links, chain = data.chain || []
+  var children = {}, positions = {}, visited = {}
+  nodes.forEach(function(n) { children[n.id] = [] })
+  links.forEach(function(l) { if (children[l.source]) children[l.source].push(l.target) })
+
+  var chainIdx = {}
+  chain.forEach(function(id, i) { chainIdx[id] = i })
+
+  function layout(id, x, y, depth) {
+    if (visited[id]) return
+    visited[id] = true
+    positions[id] = { x: x, y: y, depth: depth }
+    var kids = children[id] || []
+    kids.forEach(function(cid, i) {
+      if (chain.indexOf(cid) >= 0) {
+        var cx = chainIdx[cid] != null ? chainIdx[cid] * CHAIN_X + 100 : x + CHAIN_X
+        layout(cid, cx, CHAIN_Y, 0)
+      } else {
+        layout(cid, x + 100, y + 80 + i * BRANCH_GAP, depth + 1)
+      }
+    })
+  }
+
+  var roots = []
+  if (chain.length > 0) {
+    var firstChain = nodes.find(function(n) { return n.id === chain[0] })
+    if (firstChain) roots = [firstChain]
+  }
+  if (roots.length === 0) {
+    roots = nodes.filter(function(n) { return n.type === 'root' })
+  }
+  if (roots.length === 0 && nodes.length > 0) roots = [nodes[0]]
+  roots.forEach(function(r) {
+    layout(r.id, 100, CHAIN_Y, 0)
+  })
+
+  // 孤儿节点
+  var orphans = nodes.filter(function(n) { return !visited[n.id] })
+  if (orphans.length > 0) {
+    var baseY = CHAIN_Y + 500
+    var groups = {}
+    orphans.forEach(function(n) {
+      var tl = n.taskLine || '__orphan__'
+      if (!groups[tl]) groups[tl] = []
+      groups[tl].push(n)
+    })
+    for (var tl in groups) {
+      groups[tl].forEach(function(n, i) {
+        visited[n.id] = true
+        positions[n.id] = { x: 80 + i * 220, y: baseY, depth: 99 }
+      })
+      baseY += 90
+    }
+  }
+
+  return positions
+}
+
+function render(data) {
+  if (!data) return
+  graphData = data
+  var nodes = data.nodes, links = data.links, chain = data.chain || [], taskLines = data.taskLines || {},
+      meta = data.meta || {}
+  var categories = buildCategories(taskLines)
+  var pos = chainLayout(data)
+  var container = document.getElementById('chart')
+  var viewW = container.clientWidth || 900
+
+  // 审计开关同步
+  var auditSwitch = document.getElementById('auditSwitch')
+  if (auditSwitch.checked !== (meta.auditEnabled === true)) {
+    auditSwitch.checked = meta.auditEnabled === true
+  }
+
+  var lastChainIds = chain.slice(-4)
+  var offsetX = 0, offsetY = 0
+  if (lastChainIds.length > 0) {
+    var minX = Infinity, maxX = -Infinity
+    lastChainIds.forEach(function(id) {
+      if (pos[id]) {
+        if (pos[id].x < minX) minX = pos[id].x
+        if (pos[id].x > maxX) maxX = pos[id].x
+      }
+    })
+    if (isFinite(minX)) {
+      var latestId = lastChainIds[lastChainIds.length - 1]
+      var latestX = pos[latestId] ? pos[latestId].x : maxX
+      offsetX = -(latestX - viewW * 0.65)
+      offsetY = 0
+    }
+  }
+
+  var shiftedData = assignCategory(nodes, taskLines).map(function(n) {
+    var catColor = (categories[n.category] && categories[n.category].itemStyle)
+      ? categories[n.category].itemStyle.color : '#888'
+    var itemStyle = {}
+
+    // 失败节点：红色边框
+    if (n.status === 'failed') {
+      itemStyle = { color: catColor, opacity: 0.5, borderColor: '#f85149', borderWidth: 3 }
+    }
+    // 灰色计划节点（planMode + pending/shelved）
+    else if (n.planMode && n.status !== 'active' && n.status !== 'done') {
+      itemStyle = { color: '#666', opacity: 0.6, borderColor: '#555', borderWidth: 2, borderType: 'dashed' }
+    }
+    // 灰色计划节点被激活（游标走到了）
+    else if (n.planMode && n.status === 'active') {
+      itemStyle = { color: catColor, borderColor: '#fff', borderWidth: 3 }
+    }
+    // 普通 done
+    else if (n.status === 'done') {
+      itemStyle = { color: catColor, opacity: 0.35 }
+    }
+    // shelved
+    else if (n.status === 'shelved') {
+      itemStyle = { color: catColor, opacity: 0.4, borderColor: '#888', borderWidth: 2, borderType: 'dashed' }
+    }
+    // active
+    else if (n.status === 'active') {
+      itemStyle = { borderColor: '#fff', borderWidth: 3 }
+    }
+    // error
+    else if (n.status === 'error') {
+      itemStyle = { color: '#ee6666' }
+    }
+
+    // 游标标记：额外黄色内圈（如果节点是当前游标位置）
+    var symbolSize = n.symbolSize || 28
+    if (n.id === meta.cursor && n.status !== 'done') {
+      itemStyle.borderColor = '#fac858'
+      itemStyle.borderWidth = 4
+      symbolSize = (n.symbolSize || 28) + 4
+    }
+
+    return Object.assign({}, n, {
+      x: (pos[n.id] ? pos[n.id].x : 200) + offsetX,
+      y: (pos[n.id] ? pos[n.id].y : 300) + offsetY,
+      fixed: true,
+      symbolSize: symbolSize,
+      label: {
+        show: true,
+        fontSize: n.type === 'goal' || n.type === 'root' ? 17 : 13,
+        fontWeight: 'bold',
+        color: '#ffffff',
+        backgroundColor: n.planMode ? 'rgba(80,80,80,0.7)' : 'rgba(0,0,0,0.55)',
+        padding: [2, 6],
+        borderRadius: 4,
+        position: 'bottom',
+        distance: n.type === 'goal' ? 8 : 4
+      },
+      itemStyle: itemStyle
+    })
+  })
+
+  var edgeData = links.map(function(l) {
+    var targetNode = nodes.find(function(n) { return n.id === l.target })
+    var isPlan = targetNode && targetNode.planMode
+    return Object.assign({}, l, {
+      lineStyle: l.isMain !== false && !isPlan
+        ? { color: '#58a6ff', width: 3, opacity: 0.8, type: 'solid' }
+        : isPlan
+          ? { color: '#555', width: 1.5, opacity: 0.3, type: 'dashed' }
+          : { color: '#555', width: 1.5, opacity: 0.35, type: 'dashed' }
+    })
+  })
+
+  var legendNames = categories.map(function(c) { return c.name })
+
+  chart.setOption({
+    tooltip: {
+      formatter: function(p) {
+        if (p.dataType !== 'node') return ''
+        var d = p.data, tl = taskLines[d.taskLine]
+        var parts = ['<b>' + d.name + '</b>']
+        if (tl) parts.push('任务线: ' + tl.name)
+        if (d.planMode) parts.push('类型: 计划节点')
+        if (d.status) parts.push('状态: ' + d.status)
+        if (d.notes) parts.push('备注: ' + d.notes.substring(0, 50))
+        if (d.successCriteria) parts.push('成功标准: ' + d.successCriteria)
+        if (d.result && d.result.summary) parts.push('结果: ' + d.result.summary)
+        if (d.audited) parts.push('已审计: ✓')
+        parts.push('---')
+        parts.push('右键: 更多操作 | 点击: 查看报告')
+        return parts.join('<br/>')
+      }
+    },
+    legend: {
+      data: legendNames, bottom: 0,
+      textStyle: { color: '#8b949e', fontSize: 11 },
+      itemWidth: 14, itemHeight: 14, type: 'scroll'
+    },
+    series: [{
+      type: 'graph', layout: 'none', roam: 'scale', draggable: false,
+      categories: categories,
+      data: shiftedData,
+      links: edgeData,
+      emphasis: { focus: 'adjacency', lineStyle: { width: 4 } },
+      scaleLimit: { min: 0.4, max: 3 }
+    }]
+  }, true)
+
+  document.getElementById('stats').textContent =
+    '节点:' + nodes.length + ' | 链长:' + (chain||[]).length +
+    ' | 任务线:' + Object.keys(taskLines).length +
+    (meta.cursor ? ' | 游标: ' + (nodes.find(function(n){return n.id===meta.cursor})||{}).name || '' : '')
+}
+
+// ============ 右键菜单 ============
+document.addEventListener('contextmenu', function(e) { e.preventDefault() }, false)
+
+chart.on('contextmenu', function(params) {
+  if (params.dataType === 'node') {
+    ctxNodeId = params.data.id
+    var menu = document.getElementById('ctxMenu')
+    menu.style.display = 'block'
+    menu.style.left = params.event.event.clientX + 'px'
+    menu.style.top = params.event.event.clientY + 'px'
+  }
+})
+
+chart.on('click', function(params) {
+  if (params.dataType === 'node') {
+    ctxNodeId = params.data.id
+    viewReport()
+  }
+})
+
+document.addEventListener('click', function(e) {
+  var menu = document.getElementById('ctxMenu')
+  if (!menu.contains(e.target)) menu.style.display = 'none'
+})
+
+function ctxAction(action) {
+  document.getElementById('ctxMenu').style.display = 'none'
+  switch (action) {
+    case 'editNotes': editNotes(); break
+    case 'viewReport': viewReport(); break
+    case 'markDone': markNode('done'); break
+    case 'markFailed': markNode('failed'); break
+    case 'togglePin': togglePin(); break
+    case 'saveNode': saveNode(); break
+    case 'deleteNode': deleteNode(); break
+  }
+}
+
+// ============ 节点操作 ============
+function getNode(id) {
+  return graphData && graphData.nodes.find(function(n) { return n.id === id })
+}
+
+function editNotes() {
+  var node = getNode(ctxNodeId)
+  if (!node) return
+  document.getElementById('notesTitle').textContent = '编辑: ' + node.name
+  document.getElementById('notesName').value = node.name
+  document.getElementById('notesText').value = node.notes || ''
+  document.getElementById('notesCriteria').value = node.successCriteria || ''
+  document.getElementById('notesModal').classList.add('show')
+}
+
+function saveNotes() {
+  var name = document.getElementById('notesName').value
+  var notes = document.getElementById('notesText').value
+  var criteria = document.getElementById('notesCriteria').value
+  fetch('/graph', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({op:'update-node', nodeId:ctxNodeId, name:name, notes:notes, successCriteria:criteria})
+  }).then(function(r) { return r.json() }).then(function(res) {
+    if (res.ok) closeModal('notesModal')
+  })
+}
+
+function markNode(status) {
+  var op = status === 'done' ? 'mark-done' : 'mark-failed'
+  var body = {op:op, nodeId:ctxNodeId}
+  if (status === 'failed') {
+    var reason = prompt('失败原因：')
+    if (reason) body.reason = reason
+  }
+  fetch('/graph', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(body)
+  })
+}
+
+function togglePin() {
+  var node = getNode(ctxNodeId)
+  if (!node) return
+  fetch('/graph', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({op:'update-node', nodeId:ctxNodeId, pinned: !node.pinned})
+  })
+}
+
+function deleteNode() {
+  if (!confirm('确定删除节点 "' + (getNode(ctxNodeId)||{}).name + '"？')) return
+  fetch('/graph', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({op:'delete-node', nodeId:ctxNodeId})
+  })
+}
+
+function saveNode() {
+  fetch('/archive', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({nodeId: ctxNodeId})
+  }).then(function(r) { return r.json() }).then(function(res) {
+    if (res.ok) alert('已保存到 ' + (res.file || '归档'))
+  })
+}
+
+function resetAll() {
+  if (!confirm('确定清空所有节点？此操作不可恢复。')) return
+  fetch('/reset', {method:'POST'}).then(function(r){ return r.json() }).then(function(res) {
+    if (res.ok) { ctxNodeId = null; fetch('/state').then(function(r){ return r.json() }).then(render) }
+  })
+}
+
+function saveValuable() {
+  fetch('/archive', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({})
+  }).then(function(r) { return r.json() }).then(function(res) {
+    if (res.ok) alert('已归档 ' + (res.count || 0) + ' 个节点')
+  })
+}
+
+function viewReport() {
+  var node = getNode(ctxNodeId)
+  if (!node) return
+  document.getElementById('reportTitle').textContent = node.name + ' — 报告'
+
+  var body = ''
+  body += '状态: ' + (node.status || '未知')
+  if (node.planMode) body += ' | 计划节点'
+  if (node.audited) body += ' | 已审计'
+  body += '\n\n'
+
+  if (node.notes) body += '备注: ' + node.notes + '\n\n'
+  if (node.successCriteria) body += '成功标准: ' + node.successCriteria + '\n\n'
+
+  if (node.result) {
+    var r = node.result
+    if (r.outcome) body += '执行结果: ' + r.outcome + '\n'
+    if (r.summary) body += '摘要: ' + r.summary + '\n'
+    if (r.failedAt) body += '失败时间: ' + r.failedAt + '\n'
+    body += '\n'
+
+    if (r.attempts && r.attempts.length > 0) {
+      body += '=== 尝试记录 ===\n\n'
+      r.attempts.forEach(function(a, i) {
+        body += '方案' + (i+1) + ': ' + (a.approach || '未命名') + '\n'
+        body += '  操作数: ' + (a.actions ? a.actions.length : 0) + '\n'
+        body += '  判定: ' + (a.verdict || 'pending') + '\n\n'
+      })
+    }
+
+    if (r.finalReport) {
+      body += '=== 完整报告 ===\n\n' + r.finalReport + '\n'
+    }
+  }
+
+  if (!node.result || (!node.result.finalReport && !node.notes && !node.successCriteria)) {
+    body += '(暂无详细信息)\n\n右键节点 → 编辑备注 可添加信息'
+  }
+
+  document.getElementById('reportBody').textContent = body
+  document.getElementById('reportModal').classList.add('show')
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('show')
+}
+
+// ============ 审计 ============
+function toggleAudit(enabled) {
+  fetch('/audit-toggle', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({enabled: enabled})
+  })
+}
+
+// 监听 SSE 审计事件
+// server 通过 broadcast('event', {type:'audit_request', ...}) 推送
+var eventSource = null
+function connectSSE() {
+  eventSource = new EventSource('/sse')
+
+  eventSource.addEventListener('graph-update', function(e) {
+    render(JSON.parse(e.data))
+  })
+
+  eventSource.addEventListener('event', function(e) {
+    var evt = JSON.parse(e.data)
+
+    // 审计请求拦截
+    if (evt.type === 'audit_check') {
+      showAuditModal(evt)
+      return
+    }
+
+    // 常规事件
+    var badge = document.getElementById('status')
+    if (badge) badge.textContent = '在线'
+    document.getElementById('log').textContent = '[' + new Date().toLocaleTimeString() + '] ' + (evt.type || '')
+    document.getElementById('dot').className = 'status-dot online'
+  })
+
+  eventSource.onopen = function() {
+    document.getElementById('status').textContent = '在线'
+    document.getElementById('dot').className = 'status-dot online'
+  }
+
+  eventSource.onerror = function() {
+    document.getElementById('status').textContent = '重连...'
+    document.getElementById('dot').className = 'status-dot offline'
+    eventSource.close()
+    setTimeout(connectSSE, 3000)
+  }
+
+  fetch('/state').then(function(r) { return r.json() }).then(render)
+}
+
+// ============ 审计弹窗 ============
+var auditResolve = null
+
+function showAuditModal(evt) {
+  document.getElementById('auditCmd').textContent = evt.command || evt.toolName || '未知操作'
+  document.getElementById('auditDesc').textContent = 'Claude 请求执行以下操作：'
+  document.getElementById('auditModal').classList.add('show')
+
+  var countdown = 35
+  var el = document.getElementById('auditCountdown')
+  el.textContent = '超时自动拒绝: ' + countdown + 's'
+
+  if (auditTimer) clearInterval(auditTimer)
+  auditTimer = setInterval(function() {
+    countdown--
+    if (countdown <= 0) {
+      clearInterval(auditTimer)
+      auditTimer = null
+      document.getElementById('auditModal').classList.remove('show')
+      if (auditResolve) auditResolve({approved: false, reason: '超时自动拒绝'})
+      auditResolve = null
+    } else {
+      el.textContent = '超时自动拒绝: ' + countdown + 's'
+    }
+  }, 1000)
+
+  return new Promise(function(resolve) {
+    auditResolve = resolve
+  })
+}
+
+function auditAnswer(approved) {
+  if (auditTimer) { clearInterval(auditTimer); auditTimer = null }
+  document.getElementById('auditModal').classList.remove('show')
+  if (auditResolve) {
+    auditResolve({approved: approved, reason: approved ? '用户允许' : '用户拒绝'})
+    auditResolve = null
+  }
+  // 通知 server
+  fetch('/audit-response', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({approved: approved})
+  }).catch(function(){})
+}
+
+// ============ 键盘快捷键 ============
+document.addEventListener('keydown', function(e) {
+  if (e.ctrlKey && e.key === 'a') {
+    // Ctrl+A = 切换审计
+    e.preventDefault()
+    var sw = document.getElementById('auditSwitch')
+    sw.checked = !sw.checked
+    toggleAudit(sw.checked)
+  }
+  if (e.key === 'Escape') {
+    document.getElementById('ctxMenu').style.display = 'none'
+    closeModal('notesModal')
+    closeModal('reportModal')
+    if (document.getElementById('auditModal').classList.contains('show')) {
+      auditAnswer(false)
+    }
+  }
+})
+
+connectSSE()
+window.addEventListener('resize', function() { chart.resize() })
+</script>
+</body>
+</html>
