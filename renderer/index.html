@@ -183,7 +183,7 @@ body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color
   </div>
 
   <!-- 备注编辑弹窗 -->
-  <div v-if="modals.notes" class="modal-overlay" @click.self="modals.notes=false">
+  <div v-show="modals.notes" class="modal-overlay" @click.self="modals.notes=false">
     <div class="modal-box">
       <h3>编辑: {{ editNode.name }}</h3>
       <div class="field"><label>节点名</label><input v-model="editNode.name"></div>
@@ -197,7 +197,7 @@ body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color
   </div>
 
   <!-- 报告弹窗 -->
-  <div v-if="modals.report" class="modal-overlay" @click.self="modals.report=false">
+  <div v-show="modals.report" class="modal-overlay" @click.self="modals.report=false">
     <div class="modal-box">
       <h3>{{ getNode(ctxMenu.nodeId).name }} — 报告</h3>
       <div class="report-body">{{ reportText }}</div>
@@ -206,7 +206,7 @@ body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color
   </div>
 
   <!-- 审计确认弹窗 -->
-  <div v-if="modals.audit" class="audit-modal">
+  <div v-show="modals.audit" class="audit-modal">
     <h4>⚠️ 脑图审计确认</h4>
     <div class="audit-desc">Claude 请求修改脑图结构：</div>
     <div class="audit-cmd">{{ auditCmd }}</div>
@@ -218,7 +218,7 @@ body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color
   </div>
 
   <!-- 倒计时弹窗 -->
-  <div v-if="countdown.show" class="countdown-overlay">
+  <div v-show="countdown.show" class="countdown-overlay">
     <div class="cd-box">
       <div class="cd-icon">🔄</div>
       <div class="cd-title">计划链已完成</div>
