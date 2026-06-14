@@ -1,0 +1,30 @@
+Brain Map v2 - Phase 1 Session Summary (2026-06-14~15)
+============================================================
+
+Key Deliverables:
+- server.cjs: cursor + planMode + planRoots + /graph API + audit endpoints + archive + anti-dead-loop
+- hook-forwarder.js: UserPromptSubmit context injection + SessionStart auto-launch + PreToolUse audit interception
+- renderer/index.html: gray plan nodes + context menu + audit toggle + confirmation Modal + node report + clear button
+- settings.json: 7 hooks registered + timeout tuning
+
+Core Design Decisions:
+1. Cursor = server memory pointer, UserPromptSubmit injects +/-3 nodes
+2. Plan nodes = planMode:true, gray dashed border. Cursor activates: bright color + yellow border
+3. Multiple parallel plan chains = S.planRoots[] + currentPlanIndex
+4. Audit = PreToolUse blocks + SSE + browser Modal + 30s timeout auto-deny
+5. Session lifecycle, valuable nodes exported to JSONL archive
+
+Plan Chain Color Table:
+- Plan pending: #666 gray dashed
+- Cursor active: task line color + white border + yellow (#fac858)
+- Action executing: colored + white border
+- Done: colored semi-transparent + checkmark
+- Failed: red border (#f85149) + X mark
+- Shelved: gray dashed semi-transparent
+
+Not Yet Implemented:
+- Countdown auto-advance (code)
+- Parallel swimlane rendering
+- Audit popup real trigger verification
+
+Git: https://github.com/Mlukth/brain-map

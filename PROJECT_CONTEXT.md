@@ -269,3 +269,20 @@ curl -X POST http://127.0.0.1:47635/reset
 - 渲染器：多 root 泳道 → chain[0] 为单一布局根，孤儿按 taskLine 分组堆叠
 - 调研 EventStoreDB/DAG/ArangoDB 等重型方案 → 结论：800行项目不需要，树模型足够
 - **重要教训**：上下文丢失导致之前精心设计的工作模式崩盘 → 需求文档必须在编码前完整写好（见 CLAUDE.md 补充规则）
+
+### 2026-06-14~15（第7次）— v2 Phase 1 完成
+- 完整需求讨论 → 技术方案 → 分期实现
+- **工作流**：讨论需求 → 写TECHNICAL_PLAN.md → 确认方案 → 分期落地 → 测试验证 → git备份
+- **数据模型**：基于v1树模型扩展，加游标(S.meta.cursor)、planMode、planRoots、notes/result/successCriteria/audited等字段
+- **游标系统**：S.meta.cursor指针，自动随prompt_submit移动，Hook注入±3节点上下文
+- **计划经济**：prompt含"计划/步骤/路线"→建灰色链(planMode:true,#666虚线)；游标激活→变亮+黄框；done→任务线色+半透明；failed→红框
+- **planRoots**：方案A(轻量数组)，支持多条平行计划链，currentPlanIndex逐条推进
+- **/graph API**：create-node/delete-node/update-node/move-cursor/mark-done/mark-failed + auditRequest/auditResponse阻塞端点
+- **审计系统**：浏览器toggle开关(默认关)，开→PreToolUse阻塞+SSE+Modal→用户确认→回传；30s超时自动拒绝
+- **防死循环**：3次失败标红+finalReport；2备选方案均失败→人工介入
+- **归档**：有价值节点→D:/docs/brain-map-archive.jsonl (JSONL追加)
+- **文件变更**：server.cjs(+300行)、hook-forwarder.js(重写)、renderer/index.html(重写)、settings.json(+SessionEnd,超时调整)
+- **测试**：test-cursor.js(游标匹配)、test-init.cjs(初始化)、test-demo.cjs(全流程8项)
+- **计划链颜色表**（见BrainMap-计划链生命周期演示.vue）：灰色虚线(pending)→亮色白边+黄框(游标激活)→彩色(执行中action)→半透+✓(done)→红框+✗(failed)
+- **待完成**：倒计时自动递进(已讨论方案，未代码化)、平行泳道渲染、审计弹窗真实触发验证
+- **重要经验**：本次工作流(需求讨论→方案文档→分期→测试→git)执行满意，考虑封装为Skill

@@ -808,6 +808,85 @@ const server = http.createServer((req, res) => {
     return res.end(JSON.stringify({ok:true,nodes:S.nodes.length,clients:clients.length,cursor:S.meta.cursor}))
   }
 
+  // ============ 审计阻塞端点 ============
+  const auditRequests = server._auditRequests || (server._auditRequests = new Map())
+  server._auditRequests = auditRequests
+
+  if (req.url === '/audit-request' && req.method === 'POST') {
+    let body = ''
+    req.on('data', c => body += c)
+    req.on('end', () => {
+      try {
+        const params = JSON.parse(body || '{}')
+        const requestId = 'audit-' + Date.now() + '-' + Math.random().toString(36).substring(2,6)
+        const action = params.action || '未知操作'
+        const timeoutMs = params.timeout || 30000
+
+        // 通知浏览器弹窗
+        broadcast('event', { type: 'audit_check', requestId, action,
+          command: params.command || '', timeout: timeoutMs })
+
+        let resolved = false
+        const timer = setTimeout(() => {
+          if (!resolved) {
+            resolved = true
+            auditRequests.delete(requestId)
+            res.writeHead(200, {'Content-Type':'application/json'})
+            res.end(JSON.stringify({approved: false, reason: '超时自动拒绝'}))
+          }
+        }, timeoutMs)
+
+        auditRequests.set(requestId, {
+          resolve: (approved, reason) => {
+            if (!resolved) {
+              resolved = true
+              clearTimeout(timer)
+              auditRequests.delete(requestId)
+              res.writeHead(200, {'Content-Type':'application/json'})
+              res.end(JSON.stringify({approved, reason}))
+            }
+          }
+        })
+
+        req.on('close', () => {
+          if (!resolved) {
+            resolved = true
+            clearTimeout(timer)
+            auditRequests.delete(requestId)
+          }
+        })
+      } catch(e) {
+        res.writeHead(400, {'Content-Type':'application/json'})
+        res.end(JSON.stringify({approved: false, reason: e.message}))
+      }
+    })
+    return
+  }
+
+  if (req.url === '/audit-response' && req.method === 'POST') {
+    let body = ''
+    req.on('data', c => body += c)
+    req.on('end', () => {
+      try {
+        const params = JSON.parse(body || '{}')
+        const { requestId, approved, reason } = params
+        const entry = auditRequests.get(requestId)
+        if (entry) {
+          entry.resolve(approved !== false, reason || (approved ? '用户允许' : '用户拒绝'))
+          res.writeHead(200, {'Content-Type':'application/json'})
+          res.end(JSON.stringify({ok: true}))
+        } else {
+          res.writeHead(404, {'Content-Type':'application/json'})
+          res.end(JSON.stringify({ok: false, error: '请求已过期或不存在'}))
+        }
+      } catch(e) {
+        res.writeHead(400, {'Content-Type':'application/json'})
+        res.end(JSON.stringify({ok: false, error: e.message}))
+      }
+    })
+    return
+  }
+
   // 静态文件
   let fp = req.url === '/' ? '/index.html' : req.url.split('?')[0]
   fp = path.join(__dirname, 'renderer', fp)

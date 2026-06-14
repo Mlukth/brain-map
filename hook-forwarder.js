@@ -231,12 +231,12 @@ async function main() {
       process.stdout.write(output)
     } else {
       // 审计开启 → 阻塞等待用户确认
-      // 发送审计请求到 server → SSE推浏览器 → 等回应
-      const auditResult = await postJSON(`${SERVER_URL}/events`, {
-        type: 'audit_check',
-        toolName: payload.tool_name,
-        command: payload.tool_input?.command || ''
-      }, 35000) // 给用户 35s 反应时间
+      // 调 /audit-request (服务端阻塞直到用户回应或超时)
+      const auditResult = await postJSON(`${SERVER_URL}/audit-request`, {
+        action: 'graph操作',
+        command: payload.tool_input?.command || '',
+        timeout: 35000
+      }, 40000) // 等 40s
 
       if (auditResult && auditResult.approved) {
         const output = JSON.stringify({

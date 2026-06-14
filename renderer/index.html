@@ -586,14 +586,15 @@ function connectSSE() {
 }
 
 // ============ 审计弹窗 ============
-var auditResolve = null
+var auditRequestId = null
 
 function showAuditModal(evt) {
-  document.getElementById('auditCmd').textContent = evt.command || evt.toolName || '未知操作'
-  document.getElementById('auditDesc').textContent = 'Claude 请求执行以下操作：'
+  auditRequestId = evt.requestId || null
+  document.getElementById('auditCmd').textContent = evt.command || evt.action || '未知操作'
+  document.getElementById('auditDesc').textContent = 'Claude 请求修改脑图结构：'
   document.getElementById('auditModal').classList.add('show')
 
-  var countdown = 35
+  var countdown = Math.floor((evt.timeout || 30000) / 1000)
   var el = document.getElementById('auditCountdown')
   el.textContent = '超时自动拒绝: ' + countdown + 's'
 
@@ -604,31 +605,25 @@ function showAuditModal(evt) {
       clearInterval(auditTimer)
       auditTimer = null
       document.getElementById('auditModal').classList.remove('show')
-      if (auditResolve) auditResolve({approved: false, reason: '超时自动拒绝'})
-      auditResolve = null
+      fetch('/audit-response', {method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({requestId:auditRequestId,approved:false,reason:'超时自动拒绝'})
+      }).catch(function(){})
     } else {
       el.textContent = '超时自动拒绝: ' + countdown + 's'
     }
   }, 1000)
-
-  return new Promise(function(resolve) {
-    auditResolve = resolve
-  })
 }
 
 function auditAnswer(approved) {
   if (auditTimer) { clearInterval(auditTimer); auditTimer = null }
   document.getElementById('auditModal').classList.remove('show')
-  if (auditResolve) {
-    auditResolve({approved: approved, reason: approved ? '用户允许' : '用户拒绝'})
-    auditResolve = null
-  }
-  // 通知 server
+  // 通知 server 解除阻塞
   fetch('/audit-response', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({approved: approved})
+    body: JSON.stringify({requestId:auditRequestId, approved: approved})
   }).catch(function(){})
+  auditRequestId = null
 }
 
 // ============ 键盘快捷键 ============

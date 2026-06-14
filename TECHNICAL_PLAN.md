@@ -182,7 +182,9 @@ Claude 要改图结构（删节点/改关系/改备注）
 
 ## 五、实现范围（分期）
 
-### Phase 1 — 最小闭环（目标：能跑通计划经济+游标+备注注入）
+### Phase 1 — 最小闭环 ✅ 已完成 (2026-06-15)
+
+**已完成**：游标、planMode灰色节点、/graph API、Hook注入、审计开关、右键菜单、归档JSONL、planRoots多链、防死循环
 
 **改动文件**：
 - `server.cjs`：加游标、planMode、notes、result 字段，加 /graph API
