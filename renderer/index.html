@@ -5,735 +5,379 @@
 <title>Brain Map v2</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color:#e0e0e0;overflow:hidden;height:100vh;display:flex;flex-direction:column}
-.topbar{height:40px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:#161b22;border-bottom:1px solid #30363d;flex-shrink:0}
-.topbar-title{font-size:14px;font-weight:700}
-.topbar-right{display:flex;align-items:center;gap:10px}
+body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color:#e0e0e0;height:100vh;overflow:hidden}
+#app{height:100vh;display:flex;flex-direction:column}
+.topbar{min-height:40px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:#161b22;border-bottom:1px solid #30363d;flex-shrink:0;flex-wrap:wrap;gap:4px}
+.topbar-title{font-size:14px;font-weight:700;white-space:nowrap}
+.topbar-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .status-dot{width:8px;height:8px;border-radius:4px;display:inline-block}
-.status-dot.online{background:#3fb950}.status-dot.offline{background:#555}
+.on{background:#3fb950}.off{background:#555}
 .status-text{font-size:11px;color:#8b949e}
-
-/* 审计开关 */
 .audit-toggle{display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none}
 .audit-toggle input{display:none}
 .audit-switch{width:36px;height:20px;background:#30363d;border-radius:10px;position:relative;transition:background .2s}
 .audit-switch::after{content:'';width:16px;height:16px;background:#8b949e;border-radius:8px;position:absolute;top:2px;left:2px;transition:all .2s}
 .audit-toggle input:checked+.audit-switch{background:#238636}
 .audit-toggle input:checked+.audit-switch::after{background:#fff;left:18px}
-.audit-label{font-size:11px;color:#8b949e}
-
-/* 按钮 */
-.btn{padding:4px 12px;border-radius:6px;border:1px solid #30363d;background:#21262d;color:#c9d1d9;font-size:11px;cursor:pointer;transition:all .15s}
+.audit-label{font-size:11px;color:#8b949e;white-space:nowrap}
+.btn{padding:4px 12px;border-radius:6px;border:1px solid #30363d;background:#21262d;color:#c9d1d9;font-size:11px;cursor:pointer}
 .btn:hover{background:#30363d;border-color:#58a6ff}
-.btn.danger{color:#f85149}.btn.danger:hover{background:#3d1f1f;border-color:#f85149}
+.btn.danger{color:#f85149}.btn.danger:hover{background:#3d1f1f}
 
-#chart{flex:1;width:100%}
-.bottombar{height:32px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:#161b22;border-top:1px solid #30363d;flex-shrink:0;font-size:10px;color:#8b949e}
-.event-log{flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.node-count{margin-left:16px;flex-shrink:0}
+/* 链视图 */
+.chain-view{flex:1;overflow:auto;padding:20px}
+.chain-row{display:flex;align-items:flex-start;gap:0;margin-bottom:16px;position:relative}
+.chain-label{writing-mode:vertical-lr;font-size:10px;color:#8b949e;padding:8px 4px;flex-shrink:0;text-align:center}
+.chain-nodes{display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap}
+.chain-arrow{color:#58a6ff;font-size:20px;font-weight:bold;align-self:center;flex-shrink:0}
+
+/* 节点 */
+.node{min-width:72px;min-height:72px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:10px;font-weight:bold;text-align:center;line-height:1.2;cursor:pointer;transition:all .2s;position:relative;padding:4px}
+.node:hover{transform:scale(1.1);z-index:10}
+.node.root{background:#8883;border:2px solid #8886;color:#ccc}
+.node.plan-pending{background:#4442;border:2px dashed #666;color:#999}
+.node.plan-active{background:#5470c6cc;border:3px solid #fac858;color:#fff;box-shadow:0 0 12px rgba(250,200,88,.4)}
+.node.plan-done{background:#5470c644;border:2px solid #5470c666;color:#bbb;opacity:.6}
+.node.plan-failed{background:#ee666644;border:3px solid #f85149;color:#faa}
+.node.action-active{background:#5470c6cc;border:2px solid #fff;color:#fff}
+.node.action-done{background:#5470c644;border:1px solid #8884;color:#aaa;opacity:.5}
+.node.action-failed{background:#ee666644;border:2px solid #f85149;color:#faa}
+.node.shelved{background:#0003;border:2px dashed #888;color:#888;opacity:.5}
+.node.branch{background:#91cc7544;border:2px solid #91cc7566;color:#ddd}
+
+.icon{font-size:12px}.name{max-width:70px;word-break:break-all}
+.note-preview{font-size:7px;color:#888;max-width:68px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cursor-dot{position:absolute;top:-2px;right:-2px;width:12px;height:12px;border-radius:50%;background:#fac858;border:2px solid #fff;animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(250,200,88,.6)}50%{box-shadow:0 0 0 8px rgba(250,200,88,0)}}
+
+/* 分支区 */
+.branch-area{margin-left:28px;padding-left:12px;border-left:2px dashed #58a6ff55;display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start}
+
+/* 底部 */
+.bottombar{min-height:32px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:#161b22;border-top:1px solid #30363d;flex-shrink:0;font-size:10px;color:#8b949e}
 
 /* 右键菜单 */
-.context-menu{position:fixed;background:#1c2128;border:1px solid #30363d;border-radius:8px;padding:4px 0;z-index:1000;display:none;min-width:180px;box-shadow:0 8px 24px rgba(0,0,0,.5)}
-.context-menu .item{padding:6px 14px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .1s}
-.context-menu .item:hover{background:#30363d}
-.context-menu .divider{height:1px;background:#30363d;margin:4px 0}
+.ctx-menu{position:fixed;background:#1c2128;border:1px solid #30363d;border-radius:8px;padding:4px 0;z-index:1000;min-width:180px;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.ctx-item{padding:6px 14px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px}
+.ctx-item:hover{background:#30363d}
+.ctx-divider{height:1px;background:#30363d;margin:4px 0}
 
-/* 模态框遮罩 */
-.modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.6);z-index:2000;display:none;align-items:center;justify-content:center}
-.modal-overlay.show{display:flex}
-.modal-box{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:24px;max-width:600px;max-height:80vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.6)}
+/* Modal */
+.modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.6);z-index:2000;display:flex;align-items:center;justify-content:center}
+.modal-box{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:24px;max-width:600px;max-height:80vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.6);min-width:360px}
 .modal-box h3{margin-bottom:12px;font-size:16px}
-.modal-box .field{margin-bottom:12px}
-.modal-box .field label{display:block;font-size:11px;color:#8b949e;margin-bottom:4px}
-.modal-box .field input,.modal-box .field textarea{width:100%;padding:8px 12px;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#e0e0e0;font-size:13px;font-family:inherit}
-.modal-box .field textarea{min-height:120px;resize:vertical}
-.modal-box .report-body{background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:16px;font-size:13px;line-height:1.6;white-space:pre-wrap;max-height:400px;overflow-y:auto}
-.modal-box .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+.field{margin-bottom:12px}
+.field label{display:block;font-size:11px;color:#8b949e;margin-bottom:4px}
+.field input,.field textarea{width:100%;padding:8px 12px;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#e0e0e0;font-size:13px;font-family:inherit}
+.field textarea{min-height:100px;resize:vertical}
+.report-body{background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:16px;font-size:13px;line-height:1.6;white-space:pre-wrap;max-height:400px;overflow-y:auto}
+.btns{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
 
-/* 审计确认弹窗 */
-.audit-modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#161b22;border:2px solid #f85149;border-radius:12px;padding:20px 28px;z-index:3000;display:none;box-shadow:0 12px 40px rgba(248,81,73,.3);min-width:360px}
-.audit-modal.show{display:block}
+/* 审计弹窗 */
+.audit-modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#161b22;border:2px solid #f85149;border-radius:12px;padding:20px 28px;z-index:3000;box-shadow:0 12px 40px rgba(248,81,73,.3);min-width:360px}
 .audit-modal h4{color:#f85149;margin-bottom:8px;font-size:14px}
-.audit-modal .desc{margin-bottom:8px;font-size:12px;color:#8b949e}
-.audit-modal .cmd{background:#0d1117;padding:10px;border-radius:6px;font-family:monospace;font-size:11px;margin-bottom:14px;word-break:break-all;max-height:80px;overflow-y:auto}
-.audit-modal .countdown{font-size:10px;color:#8b949e;text-align:center;margin-top:6px}
-.audit-modal .btns{display:flex;gap:8px;justify-content:flex-end}
+.audit-desc{margin-bottom:8px;font-size:12px;color:#8b949e}
+.audit-cmd{background:#0d1117;padding:10px;border-radius:6px;font-family:monospace;font-size:11px;margin-bottom:14px;word-break:break-all;max-height:80px;overflow-y:auto}
+.audit-countdown{font-size:10px;color:#8b949e;text-align:center;margin-top:6px}
+.empty-state{color:#8b949e;text-align:center;padding:60px;font-size:14px}
 </style>
 </head>
 <body>
-<div class="topbar">
-<span class="topbar-title">🧠 Brain Map v2</span>
-<div class="topbar-right">
-<label class="audit-toggle" title="审计开关：开启后改图结构需确认">
-  <input type="checkbox" id="auditSwitch" onchange="toggleAudit(this.checked)">
-  <span class="audit-switch"></span>
-  <span class="audit-label">审计</span>
-</label>
-<button class="btn" onclick="saveValuable()" title="保存有价值节点到归档">💾 归档</button>
-<button class="btn danger" onclick="resetAll()" title="清空所有节点">🗑️ 清空</button>
-<span class="status-dot offline" id="dot"></span>
-<span class="status-text" id="status">离线</span>
-</div>
-</div>
-<div id="chart"></div>
-<div class="bottombar">
-<span class="event-log" id="log">等待连接...</span>
-<span class="node-count" id="stats"></span>
-</div>
-
-<!-- 右键菜单 -->
-<div class="context-menu" id="ctxMenu">
-  <div class="item" onclick="ctxAction('editNotes')">✏️ 编辑备注</div>
-  <div class="item" onclick="ctxAction('viewReport')">📋 查看报告</div>
-  <div class="divider"></div>
-  <div class="item" onclick="ctxAction('markDone')">✅ 标记完成</div>
-  <div class="item" onclick="ctxAction('markFailed')">❌ 标记失败</div>
-  <div class="item" onclick="ctxAction('togglePin')">📌 置顶/取消</div>
-  <div class="divider"></div>
-  <div class="item" onclick="ctxAction('saveNode')">💾 保存此节点</div>
-  <div class="item danger" onclick="ctxAction('deleteNode')">🗑️ 删除节点</div>
-</div>
-
-<!-- 备注编辑弹窗 -->
-<div class="modal-overlay" id="notesModal">
-  <div class="modal-box">
-    <h3 id="notesTitle">编辑节点</h3>
-    <div class="field"><label>节点名</label><input id="notesName"></div>
-    <div class="field"><label>备注</label><textarea id="notesText" placeholder="备注内容..."></textarea></div>
-    <div class="field"><label>成功标准</label><input id="notesCriteria" placeholder="例如: endpoint返回200，延迟<2s"></div>
-    <div class="btns">
-      <button class="btn" onclick="closeModal('notesModal')">取消</button>
-      <button class="btn" onclick="saveNotes()" style="background:#238636;border-color:#238636">保存</button>
+<div id="app">
+  <div class="topbar">
+    <span class="topbar-title">🧠 Brain Map v2</span>
+    <div class="topbar-right">
+      <label class="audit-toggle" title="审计开关">
+        <input type="checkbox" v-model="auditEnabled" @change="toggleAudit">
+        <span class="audit-switch"></span>
+        <span class="audit-label">审计</span>
+      </label>
+      <button class="btn" @click="archiveAll">💾 归档</button>
+      <button class="btn danger" @click="resetAll">🗑️ 清空</button>
+      <span class="status-dot" :class="online ? 'on' : 'off'"></span>
+      <span class="status-text">{{ online ? '在线' : '离线' }}</span>
     </div>
   </div>
-</div>
 
-<!-- 节点报告弹窗 -->
-<div class="modal-overlay" id="reportModal">
-  <div class="modal-box">
-    <h3 id="reportTitle">节点报告</h3>
-    <div class="report-body" id="reportBody"></div>
-    <div class="btns">
-      <button class="btn" onclick="closeModal('reportModal')">关闭</button>
+  <div class="chain-view" @click="closeCtxMenu">
+    <!-- 主链 -->
+    <div class="chain-row">
+      <div class="chain-label">主链</div>
+      <div class="chain-nodes">
+        <template v-for="(cid, idx) in state.chain" :key="cid">
+          <div class="chain-arrow" v-if="idx>0 && idx%2===0">↓</div>
+          <div class="chain-arrow" v-if="idx>0 && idx%2===1">→</div>
+          <div :class="nodeClass(cid)" @click="openReport(cid)" @contextmenu.prevent="showCtxMenu($event, cid)">
+            <span class="icon">{{ statusIcon(cid) }}</span>
+            <span class="name">{{ nodeName(cid) }}</span>
+            <span class="note-preview" v-if="getNode(cid).notes">{{ getNode(cid).notes.substring(0,12) }}…</span>
+            <span class="cursor-dot" v-if="state.meta.cursor === cid"></span>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <!-- 泳道：每条计划链分支 -->
+    <div class="chain-row" v-for="(rid, pi) in state.planRoots" :key="'p'+pi">
+      <div class="chain-label">{{ getNode(rid).name }}</div>
+      <div>
+        <div class="chain-nodes">
+          <div :class="nodeClass(rid)" @click="openReport(rid)" @contextmenu.prevent="showCtxMenu($event, rid)">
+            <span class="icon">{{ statusIcon(rid) }}</span>
+            <span class="name">{{ getNode(rid).name }}</span>
+            <span class="cursor-dot" v-if="state.meta.cursor === rid"></span>
+          </div>
+        </div>
+        <!-- 该计划根下的分支子节点树 -->
+        <div class="branch-area" v-if="shouldExpandPlan(rid)">
+          <template v-for="cid in getPlanSubtree(rid)" :key="cid">
+            <div :class="nodeClass(cid)" @click="openReport(cid)" @contextmenu.prevent="showCtxMenu($event, cid)">
+              <span class="icon">{{ statusIcon(cid) }}</span>
+              <span class="name">{{ nodeName(cid) }}</span>
+              <span class="note-preview" v-if="getNode(cid).notes">{{ getNode(cid).notes.substring(0,10) }}…</span>
+              <span class="cursor-dot" v-if="state.meta.cursor === cid"></span>
+            </div>
+            <div class="chain-arrow">→</div>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="state.nodes.length === 0" class="empty-state">🧠 等待 Claude Code 会话开始...</div>
+  </div>
+
+  <div class="bottombar">
+    <span>{{ lastEvent }}</span>
+    <span>节点:{{ state.nodes.length }} | 链长:{{ state.chain.length }} | 计划:{{ state.planRoots.length }} | 游标:{{ cursorName }}</span>
+  </div>
+
+  <!-- 右键菜单 -->
+  <div v-if="ctxMenu.show" class="ctx-menu" :style="{left:ctxMenu.x+'px',top:ctxMenu.y+'px'}">
+    <div class="ctx-item" @click="ctxEdit">✏️ 编辑备注</div>
+    <div class="ctx-item" @click="ctxReport">📋 查看报告</div>
+    <div class="ctx-divider"></div>
+    <div class="ctx-item" @click="ctxMark('done')">✅ 标记完成</div>
+    <div class="ctx-item" @click="ctxMark('failed')">❌ 标记失败</div>
+    <div class="ctx-item" @click="ctxTogglePin">📌 置顶/取消</div>
+    <div class="ctx-divider"></div>
+    <div class="ctx-item" @click="ctxSaveNode">💾 保存此节点</div>
+    <div class="ctx-item" style="color:#f85149" @click="ctxDelete">🗑️ 删除节点</div>
+  </div>
+
+  <!-- 备注编辑弹窗 -->
+  <div v-if="modals.notes" class="modal-overlay" @click.self="modals.notes=false">
+    <div class="modal-box">
+      <h3>编辑: {{ editNode.name }}</h3>
+      <div class="field"><label>节点名</label><input v-model="editNode.name"></div>
+      <div class="field"><label>备注</label><textarea v-model="editNode.notes" placeholder="备注内容..."></textarea></div>
+      <div class="field"><label>成功标准</label><input v-model="editNode.successCriteria" placeholder="例如: endpoint返回200"></div>
+      <div class="btns">
+        <button class="btn" @click="modals.notes=false">取消</button>
+        <button class="btn" style="background:#238636" @click="saveEdit">保存</button>
+      </div>
     </div>
   </div>
-</div>
 
-<!-- 审计确认弹窗 -->
-<div class="audit-modal" id="auditModal">
-  <h4>⚠️ 脑图审计确认</h4>
-  <div class="desc" id="auditDesc">Claude 请求执行以下操作：</div>
-  <div class="cmd" id="auditCmd"></div>
-  <div class="btns">
-    <button class="btn danger" onclick="auditAnswer(false)">❌ 拒绝</button>
-    <button class="btn" onclick="auditAnswer(true)" style="background:#238636;border-color:#238636">✅ 允许</button>
+  <!-- 报告弹窗 -->
+  <div v-if="modals.report" class="modal-overlay" @click.self="modals.report=false">
+    <div class="modal-box">
+      <h3>{{ getNode(ctxMenu.nodeId).name }} — 报告</h3>
+      <div class="report-body">{{ reportText }}</div>
+      <div class="btns"><button class="btn" @click="modals.report=false">关闭</button></div>
+    </div>
   </div>
-  <div class="countdown" id="auditCountdown"></div>
+
+  <!-- 审计确认弹窗 -->
+  <div v-if="modals.audit" class="audit-modal">
+    <h4>⚠️ 脑图审计确认</h4>
+    <div class="audit-desc">Claude 请求修改脑图结构：</div>
+    <div class="audit-cmd">{{ auditCmd }}</div>
+    <div class="btns">
+      <button class="btn danger" @click="auditAnswer(false)">❌ 拒绝</button>
+      <button class="btn" style="background:#238636" @click="auditAnswer(true)">✅ 允许</button>
+    </div>
+    <div class="audit-countdown">{{ auditCountdown }}s 后自动拒绝</div>
+  </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/echarts@6.0.0/dist/echarts.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.prod.js"></script>
 <script>
-var chart = echarts.init(document.getElementById('chart'), 'dark')
-var CHAIN_X = 260, CHAIN_Y = 280, BRANCH_GAP = 130
-var graphData = null, ctxNodeId = null, auditTimer = null
+const { createApp, ref, computed, onMounted, onUnmounted, nextTick } = Vue
 
-function buildCategories(taskLines) {
-  var cats = []
-  for (var k in taskLines) {
-    var tl = taskLines[k]
-    cats.push({ name: tl.name, itemStyle: { color: tl.color } })
-  }
-  return cats
-}
+createApp({
+  setup() {
+    const state = ref({ nodes:[], links:[], chain:[], planRoots:[], taskLines:{}, meta:{cursor:null,currentPlanIndex:0} })
+    const online = ref(false)
+    const lastEvent = ref('等待连接...')
+    const auditEnabled = ref(false)
+    const ctxMenu = ref({show:false,nodeId:'',x:0,y:0})
+    const editNode = ref({})
+    const modals = ref({notes:false,report:false,audit:false})
+    const auditCmd = ref('')
+    const auditCountdown = ref(30)
+    const auditRequestId = ref('')
+    let auditTimer = null, es = null
 
-function assignCategory(nodes, taskLines) {
-  var keys = Object.keys(taskLines || {})
-  return nodes.map(function(n) {
-    var idx = keys.indexOf(n.taskLine)
-    return Object.assign({}, n, { category: idx >= 0 ? idx : 0 })
-  })
-}
+    function getNode(id) { return state.value.nodes.find(n => n.id === id) || {} }
 
-var SWIMLANE_GAP = 260
-
-function chainLayout(data) {
-  var nodes = data.nodes, links = data.links, chain = data.chain || []
-  var planRoots = data.planRoots || [], meta = data.meta || {}
-  var currentPlanIdx = meta.currentPlanIndex || 0
-  var children = {}, positions = {}, visited = {}
-
-  nodes.forEach(function(n) { children[n.id] = [] })
-  links.forEach(function(l) { if (children[l.source]) children[l.source].push(l.target) })
-
-  // 建立plan root → 所属节点集合
-  var planMembers = {}
-  function collectPlanTree(rid) {
-    if (planMembers[rid]) return
-    planMembers[rid] = new Set()
-    var stack = [rid]
-    while (stack.length > 0) {
-      var cid = stack.pop()
-      if (!planMembers[rid].has(cid)) {
-        planMembers[rid].add(cid)
-        ;(children[cid] || []).forEach(function(kid) { stack.push(kid) })
-      }
-    }
-  }
-  planRoots.forEach(function(rid) { collectPlanTree(rid) })
-
-  // 判断节点属于哪个plan
-  function getPlanIndex(id) {
-    for (var i = 0; i < planRoots.length; i++) {
-      if (planMembers[planRoots[i]] && planMembers[planRoots[i]].has(id)) return i
-    }
-    return -1
-  }
-
-  function layout(id, x, y, depth) {
-    if (visited[id]) return
-    visited[id] = true
-    positions[id] = { x: x, y: y, depth: depth }
-
-    var kids = children[id] || []
-    // 分离：链上子节点 vs 分支子节点
-    var chainKids = kids.filter(function(k) { return chain.indexOf(k) >= 0 })
-    var branchKids = kids.filter(function(k) { return chain.indexOf(k) < 0 })
-
-    // 链上子节点：水平展开
-    chainKids.forEach(function(cid, i) {
-      layout(cid, x + CHAIN_X + i * 20, y, 0)
+    const cursorName = computed(() => {
+      const n = state.value.nodes.find(n => n.id === state.value.meta.cursor)
+      return n ? n.name : '—'
     })
 
-    // 分支子节点：垂直排列
-    branchKids.forEach(function(cid, i) {
-      layout(cid, x + 80, y + 80 + i * BRANCH_GAP, depth + 1)
-    })
-  }
-
-  // === 主链布局 ===
-  var chainRoot = chain.length > 0 ? nodes.find(function(n) { return n.id === chain[0] }) : null
-  if (!chainRoot) chainRoot = nodes.find(function(n) { return n.type === 'root' })
-  if (!chainRoot && nodes.length > 0) chainRoot = nodes[0]
-
-  if (chainRoot) layout(chainRoot.id, 100, CHAIN_Y, 0)
-
-  // === 同步节点访问 ===
-  // 把未访问的链上节点，按 chain 顺序补布局
-  var lastVisitedChainX = 0
-  chain.forEach(function(cid) {
-    if (!visited[cid]) {
-      layout(cid, lastVisitedChainX + CHAIN_X, CHAIN_Y, 0)
+    function nodeName(id) {
+      const n = getNode(id)
+      return n.name ? (n.name.length > 10 ? n.name.substring(0,9)+'…' : n.name) : '?'
     }
-    if (positions[cid]) lastVisitedChainX = Math.max(lastVisitedChainX, positions[cid].x)
-  })
-
-  // === 泳道：计划链子树 ===
-  planRoots.forEach(function(planId, i) {
-    var planNode = nodes.find(function(n) { return n.id === planId })
-    if (!planNode) return
-
-    // 如果planRoot在链上已被布局，跳过主节点布局但要补分支
-    // 如果没被访问 → 单独布局到对应泳道
-    var planY = CHAIN_Y + SWIMLANE_GAP * (i + 1)
-
-    // 展开当前链，折叠待做链
-    var isCurrent = (i === currentPlanIdx)
-    var isDone = planNode.status === 'done' || planNode.status === 'failed'
-
-    if (isCurrent || isDone) {
-      // 展开：布局所有子节点
-      var planKids = children[planId] || []
-      planKids.forEach(function(cid, j) {
-        if (!visited[cid]) {
-          layout(cid, 180, planY, 0)
-          // 继续遍历这个子节点的children
-          function layoutSubtree(pid, px, py, pi, pdepth) {
-            if (visited[pid]) return
-            visited[pid] = true
-            positions[pid] = { x: px, y: py, depth: pdepth }
-            var subKids = children[pid] || []
-            subKids.forEach(function(sid, si) {
-              if (!visited[sid]) {
-                layoutSubtree(sid, px + CHAIN_X + si * 20, py, si, pdepth + 1)
-              }
-            })
+    function statusIcon(id) {
+      const n = getNode(id)
+      return n.status === 'done' ? '✓' : n.status === 'failed' ? '✗' : n.status === 'active' ? '▶' : n.status === 'shelved' ? '⊘' : '⏳'
+    }
+    function nodeClass(id) {
+      const n = getNode(id)
+      return 'node ' + (
+        n.type === 'root' ? 'root' :
+        n.planMode && n.status === 'failed' ? 'plan-failed' :
+        n.planMode && n.status === 'active' ? 'plan-active' :
+        n.planMode && n.status === 'done' ? 'plan-done' :
+        n.planMode ? 'plan-pending' :
+        n.status === 'failed' ? 'action-failed' :
+        n.status === 'active' ? 'action-active' :
+        n.status === 'done' ? 'action-done' :
+        n.status === 'shelved' ? 'shelved' :
+        n.type === 'action' ? 'branch' : 'action-active'
+      )
+    }
+    function shouldExpandPlan(rid) {
+      const n = getNode(rid)
+      return n.status === 'active' || n.status === 'done' || n.status === 'failed'
+    }
+    function getPlanSubtree(rid) {
+      // 收集非链上的子节点
+      const result = []
+      const chainSet = new Set(state.value.chain)
+      function walk(nodeId) {
+        const node = getNode(nodeId)
+        if (!node || !node.children) return
+        node.children.forEach(cid => {
+          if (!chainSet.has(cid) && !result.includes(cid)) {
+            result.push(cid)
+            walk(cid)
           }
-          // 把cid的子节点也遍历
-          function dfs(kid, kx, ky, kd) {
-            if (visited[kid]) return
-            visited[kid] = true
-            positions[kid] = { x: kx, y: ky, depth: kd }
-            ;(children[kid] || []).forEach(function(gcid, gi) {
-              if (!visited[gcid]) dfs(gcid, kx + CHAIN_X + gi * 20, ky, kd + 1)
-            })
-          }
-          dfs(cid, 180, planY, 0)
         })
-      })
-    }
-    // 折叠的链：只显示plan节点本身（如果还没被布局的话）
-    if (!positions[planId]) {
-      positions[planId] = { x: 100 + 80 * i, y: planY, depth: 0 }
-      visited[planId] = true
-    }
-  })
-
-  // === 孤儿节点 ===
-  var orphans = nodes.filter(function(n) { return !visited[n.id] })
-  if (orphans.length > 0) {
-    var baseY = CHAIN_Y + SWIMLANE_GAP * (planRoots.length + 1) + 100
-    var groups = {}
-    orphans.forEach(function(n) {
-      var tl = n.taskLine || '__orphan__'
-      if (!groups[tl]) groups[tl] = []
-      groups[tl].push(n)
-    })
-    for (var tl in groups) {
-      groups[tl].forEach(function(n, i) {
-        visited[n.id] = true
-        positions[n.id] = { x: 80 + i * 220, y: baseY, depth: 99 }
-      })
-      baseY += 90
-    }
-  }
-
-  return positions
-}
-
-function render(data) {
-  if (!data) return
-  graphData = data
-  var nodes = data.nodes, links = data.links, chain = data.chain || [], taskLines = data.taskLines || {},
-      meta = data.meta || {}
-  var categories = buildCategories(taskLines)
-  var pos = chainLayout(data)
-  var container = document.getElementById('chart')
-  var viewW = container.clientWidth || 900
-
-  // 审计开关同步
-  var auditSwitch = document.getElementById('auditSwitch')
-  if (auditSwitch.checked !== (meta.auditEnabled === true)) {
-    auditSwitch.checked = meta.auditEnabled === true
-  }
-
-  var lastChainIds = chain.slice(-4)
-  var offsetX = 0, offsetY = 0
-  if (lastChainIds.length > 0) {
-    var minX = Infinity, maxX = -Infinity
-    lastChainIds.forEach(function(id) {
-      if (pos[id]) {
-        if (pos[id].x < minX) minX = pos[id].x
-        if (pos[id].x > maxX) maxX = pos[id].x
       }
-    })
-    if (isFinite(minX)) {
-      var latestId = lastChainIds[lastChainIds.length - 1]
-      var latestX = pos[latestId] ? pos[latestId].x : maxX
-      offsetX = -(latestX - viewW * 0.65)
-      offsetY = 0
-    }
-  }
-
-  var shiftedData = assignCategory(nodes, taskLines).map(function(n) {
-    var catColor = (categories[n.category] && categories[n.category].itemStyle)
-      ? categories[n.category].itemStyle.color : '#888'
-    var itemStyle = {}
-
-    // 失败节点：红色边框
-    if (n.status === 'failed') {
-      itemStyle = { color: catColor, opacity: 0.5, borderColor: '#f85149', borderWidth: 3 }
-    }
-    // 灰色计划节点（planMode + pending/shelved）
-    else if (n.planMode && n.status !== 'active' && n.status !== 'done') {
-      itemStyle = { color: '#666', opacity: 0.6, borderColor: '#555', borderWidth: 2, borderType: 'dashed' }
-    }
-    // 灰色计划节点被激活（游标走到了）
-    else if (n.planMode && n.status === 'active') {
-      itemStyle = { color: catColor, borderColor: '#fff', borderWidth: 3 }
-    }
-    // 普通 done
-    else if (n.status === 'done') {
-      itemStyle = { color: catColor, opacity: 0.35 }
-    }
-    // shelved
-    else if (n.status === 'shelved') {
-      itemStyle = { color: catColor, opacity: 0.4, borderColor: '#888', borderWidth: 2, borderType: 'dashed' }
-    }
-    // active
-    else if (n.status === 'active') {
-      itemStyle = { borderColor: '#fff', borderWidth: 3 }
-    }
-    // error
-    else if (n.status === 'error') {
-      itemStyle = { color: '#ee6666' }
+      walk(rid)
+      return result
     }
 
-    // 游标标记：额外黄色内圈（如果节点是当前游标位置）
-    var symbolSize = n.symbolSize || 28
-    if (n.id === meta.cursor && n.status !== 'done') {
-      itemStyle.borderColor = '#fac858'
-      itemStyle.borderWidth = 4
-      symbolSize = (n.symbolSize || 28) + 4
-    }
-
-    return Object.assign({}, n, {
-      x: (pos[n.id] ? pos[n.id].x : 200) + offsetX,
-      y: (pos[n.id] ? pos[n.id].y : 300) + offsetY,
-      fixed: true,
-      symbolSize: symbolSize,
-      label: {
-        show: true,
-        fontSize: n.type === 'goal' || n.type === 'root' ? 17 : 13,
-        fontWeight: 'bold',
-        color: '#ffffff',
-        backgroundColor: n.planMode ? 'rgba(80,80,80,0.7)' : 'rgba(0,0,0,0.55)',
-        padding: [2, 6],
-        borderRadius: 4,
-        position: 'bottom',
-        distance: n.type === 'goal' ? 8 : 4
-      },
-      itemStyle: itemStyle
-    })
-  })
-
-  var edgeData = links.map(function(l) {
-    var targetNode = nodes.find(function(n) { return n.id === l.target })
-    var isPlan = targetNode && targetNode.planMode
-    return Object.assign({}, l, {
-      lineStyle: l.isMain !== false && !isPlan
-        ? { color: '#58a6ff', width: 3, opacity: 0.8, type: 'solid' }
-        : isPlan
-          ? { color: '#555', width: 1.5, opacity: 0.3, type: 'dashed' }
-          : { color: '#555', width: 1.5, opacity: 0.35, type: 'dashed' }
-    })
-  })
-
-  var legendNames = categories.map(function(c) { return c.name })
-
-  chart.setOption({
-    tooltip: {
-      formatter: function(p) {
-        if (p.dataType !== 'node') return ''
-        var d = p.data, tl = taskLines[d.taskLine]
-        var parts = ['<b>' + d.name + '</b>']
-        if (tl) parts.push('任务线: ' + tl.name)
-        if (d.planMode) parts.push('类型: 计划节点')
-        if (d.status) parts.push('状态: ' + d.status)
-        if (d.notes) parts.push('备注: ' + d.notes.substring(0, 50))
-        if (d.successCriteria) parts.push('成功标准: ' + d.successCriteria)
-        if (d.result && d.result.summary) parts.push('结果: ' + d.result.summary)
-        if (d.audited) parts.push('已审计: ✓')
-        parts.push('---')
-        parts.push('右键: 更多操作 | 点击: 查看报告')
-        return parts.join('<br/>')
+    const reportText = computed(() => {
+      const n = getNode(ctxMenu.value.nodeId)
+      if (!n.name) return '(未选择节点)'
+      let t = ''
+      t += '状态: ' + (n.status||'?') + ' | 类型: ' + (n.planMode?'计划':'执行')
+      if (n.audited) t += ' | 已审计'
+      t += '\n\n'
+      if (n.notes) t += '备注: ' + n.notes + '\n\n'
+      if (n.successCriteria) t += '成功标准: ' + n.successCriteria + '\n\n'
+      if (n.result) {
+        if (n.result.outcome) t += '结果: ' + n.result.outcome + '\n'
+        if (n.result.summary) t += '摘要: ' + n.result.summary + '\n'
+        if (n.result.attempts) {
+          t += '\n=== 尝试记录 ===\n'
+          n.result.attempts.forEach((a,i) => {
+            t += '方案'+(i+1)+': '+(a.approach||'?')+' → '+(a.verdict||'pending')+'\n'
+          })
+        }
+        if (n.result.finalReport) t += '\n=== 完整报告 ===\n' + n.result.finalReport + '\n'
       }
-    },
-    legend: {
-      data: legendNames, bottom: 0,
-      textStyle: { color: '#8b949e', fontSize: 11 },
-      itemWidth: 14, itemHeight: 14, type: 'scroll'
-    },
-    series: [{
-      type: 'graph', layout: 'none', roam: 'scale', draggable: false,
-      categories: categories,
-      data: shiftedData,
-      links: edgeData,
-      emphasis: { focus: 'adjacency', lineStyle: { width: 4 } },
-      scaleLimit: { min: 0.4, max: 3 }
-    }]
-  }, true)
+      return t || '(暂无详情)'
+    })
 
-  document.getElementById('stats').textContent =
-    '节点:' + nodes.length + ' | 链长:' + (chain||[]).length +
-    ' | 任务线:' + Object.keys(taskLines).length +
-    (meta.cursor ? ' | 游标: ' + (nodes.find(function(n){return n.id===meta.cursor})||{}).name || '' : '')
-}
+    // 右键菜单
+    function showCtxMenu(e, nodeId) { ctxMenu.value = {show:true,nodeId,x:e.clientX,y:e.clientY} }
+    function closeCtxMenu() { ctxMenu.value.show = false }
+    function ctxEdit() { const n=getNode(ctxMenu.value.nodeId); editNode.value={...n}; modals.value.notes=true; closeCtxMenu() }
+    function ctxReport() { modals.value.report=true; closeCtxMenu() }
+    function ctxMark(s) { graphCall('mark-'+s,{nodeId:ctxMenu.value.nodeId,reason:s==='failed'?prompt('失败原因：'):''}); closeCtxMenu() }
+    function ctxTogglePin() { const n=getNode(ctxMenu.value.nodeId); graphCall('update-node',{nodeId:n.id,pinned:!n.pinned}); closeCtxMenu() }
+    function ctxSaveNode() { fetch('/archive',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nodeId:ctxMenu.value.nodeId})}); closeCtxMenu() }
+    function ctxDelete() { if(confirm('删除?'))graphCall('delete-node',{nodeId:ctxMenu.value.nodeId}); closeCtxMenu() }
+    function openReport(id) { ctxMenu.value.nodeId=id; modals.value.report=true }
 
-// ============ 右键菜单 ============
-document.addEventListener('contextmenu', function(e) { e.preventDefault() }, false)
-
-chart.on('contextmenu', function(params) {
-  if (params.dataType === 'node') {
-    ctxNodeId = params.data.id
-    var menu = document.getElementById('ctxMenu')
-    menu.style.display = 'block'
-    menu.style.left = params.event.event.clientX + 'px'
-    menu.style.top = params.event.event.clientY + 'px'
-  }
-})
-
-chart.on('click', function(params) {
-  if (params.dataType === 'node') {
-    ctxNodeId = params.data.id
-    viewReport()
-  }
-})
-
-document.addEventListener('click', function(e) {
-  var menu = document.getElementById('ctxMenu')
-  if (!menu.contains(e.target)) menu.style.display = 'none'
-})
-
-function ctxAction(action) {
-  document.getElementById('ctxMenu').style.display = 'none'
-  switch (action) {
-    case 'editNotes': editNotes(); break
-    case 'viewReport': viewReport(); break
-    case 'markDone': markNode('done'); break
-    case 'markFailed': markNode('failed'); break
-    case 'togglePin': togglePin(); break
-    case 'saveNode': saveNode(); break
-    case 'deleteNode': deleteNode(); break
-  }
-}
-
-// ============ 节点操作 ============
-function getNode(id) {
-  return graphData && graphData.nodes.find(function(n) { return n.id === id })
-}
-
-function editNotes() {
-  var node = getNode(ctxNodeId)
-  if (!node) return
-  document.getElementById('notesTitle').textContent = '编辑: ' + node.name
-  document.getElementById('notesName').value = node.name
-  document.getElementById('notesText').value = node.notes || ''
-  document.getElementById('notesCriteria').value = node.successCriteria || ''
-  document.getElementById('notesModal').classList.add('show')
-}
-
-function saveNotes() {
-  var name = document.getElementById('notesName').value
-  var notes = document.getElementById('notesText').value
-  var criteria = document.getElementById('notesCriteria').value
-  fetch('/graph', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({op:'update-node', nodeId:ctxNodeId, name:name, notes:notes, successCriteria:criteria})
-  }).then(function(r) { return r.json() }).then(function(res) {
-    if (res.ok) closeModal('notesModal')
-  })
-}
-
-function markNode(status) {
-  var op = status === 'done' ? 'mark-done' : 'mark-failed'
-  var body = {op:op, nodeId:ctxNodeId}
-  if (status === 'failed') {
-    var reason = prompt('失败原因：')
-    if (reason) body.reason = reason
-  }
-  fetch('/graph', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify(body)
-  })
-}
-
-function togglePin() {
-  var node = getNode(ctxNodeId)
-  if (!node) return
-  fetch('/graph', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({op:'update-node', nodeId:ctxNodeId, pinned: !node.pinned})
-  })
-}
-
-function deleteNode() {
-  if (!confirm('确定删除节点 "' + (getNode(ctxNodeId)||{}).name + '"？')) return
-  fetch('/graph', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({op:'delete-node', nodeId:ctxNodeId})
-  })
-}
-
-function saveNode() {
-  fetch('/archive', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({nodeId: ctxNodeId})
-  }).then(function(r) { return r.json() }).then(function(res) {
-    if (res.ok) alert('已保存到 ' + (res.file || '归档'))
-  })
-}
-
-function resetAll() {
-  if (!confirm('确定清空所有节点？此操作不可恢复。')) return
-  fetch('/reset', {method:'POST'}).then(function(r){ return r.json() }).then(function(res) {
-    if (res.ok) { ctxNodeId = null; fetch('/state').then(function(r){ return r.json() }).then(render) }
-  })
-}
-
-function saveValuable() {
-  fetch('/archive', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({})
-  }).then(function(r) { return r.json() }).then(function(res) {
-    if (res.ok) alert('已归档 ' + (res.count || 0) + ' 个节点')
-  })
-}
-
-function viewReport() {
-  var node = getNode(ctxNodeId)
-  if (!node) return
-  document.getElementById('reportTitle').textContent = node.name + ' — 报告'
-
-  var body = ''
-  body += '状态: ' + (node.status || '未知')
-  if (node.planMode) body += ' | 计划节点'
-  if (node.audited) body += ' | 已审计'
-  body += '\n\n'
-
-  if (node.notes) body += '备注: ' + node.notes + '\n\n'
-  if (node.successCriteria) body += '成功标准: ' + node.successCriteria + '\n\n'
-
-  if (node.result) {
-    var r = node.result
-    if (r.outcome) body += '执行结果: ' + r.outcome + '\n'
-    if (r.summary) body += '摘要: ' + r.summary + '\n'
-    if (r.failedAt) body += '失败时间: ' + r.failedAt + '\n'
-    body += '\n'
-
-    if (r.attempts && r.attempts.length > 0) {
-      body += '=== 尝试记录 ===\n\n'
-      r.attempts.forEach(function(a, i) {
-        body += '方案' + (i+1) + ': ' + (a.approach || '未命名') + '\n'
-        body += '  操作数: ' + (a.actions ? a.actions.length : 0) + '\n'
-        body += '  判定: ' + (a.verdict || 'pending') + '\n\n'
+    async function saveEdit() {
+      await graphCall('update-node',{
+        nodeId:editNode.value.id,name:editNode.value.name,
+        notes:editNode.value.notes,successCriteria:editNode.value.successCriteria
       })
+      modals.value.notes = false
     }
 
-    if (r.finalReport) {
-      body += '=== 完整报告 ===\n\n' + r.finalReport + '\n'
-    }
-  }
-
-  if (!node.result || (!node.result.finalReport && !node.notes && !node.successCriteria)) {
-    body += '(暂无详细信息)\n\n右键节点 → 编辑备注 可添加信息'
-  }
-
-  document.getElementById('reportBody').textContent = body
-  document.getElementById('reportModal').classList.add('show')
-}
-
-function closeModal(id) {
-  document.getElementById(id).classList.remove('show')
-}
-
-// ============ 审计 ============
-function toggleAudit(enabled) {
-  fetch('/audit-toggle', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({enabled: enabled})
-  })
-}
-
-// 监听 SSE 审计事件
-// server 通过 broadcast('event', {type:'audit_request', ...}) 推送
-var eventSource = null
-function connectSSE() {
-  eventSource = new EventSource('/sse')
-
-  eventSource.addEventListener('graph-update', function(e) {
-    render(JSON.parse(e.data))
-  })
-
-  eventSource.addEventListener('event', function(e) {
-    var evt = JSON.parse(e.data)
-
-    // 审计请求拦截
-    if (evt.type === 'audit_check') {
-      showAuditModal(evt)
-      return
+    async function graphCall(op, data) {
+      const r = await fetch('/graph',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op,...data})})
+      return r.json()
     }
 
-    // 常规事件
-    var badge = document.getElementById('status')
-    if (badge) badge.textContent = '在线'
-    document.getElementById('log').textContent = '[' + new Date().toLocaleTimeString() + '] ' + (evt.type || '')
-    document.getElementById('dot').className = 'status-dot online'
-  })
-
-  eventSource.onopen = function() {
-    document.getElementById('status').textContent = '在线'
-    document.getElementById('dot').className = 'status-dot online'
-  }
-
-  eventSource.onerror = function() {
-    document.getElementById('status').textContent = '重连...'
-    document.getElementById('dot').className = 'status-dot offline'
-    eventSource.close()
-    setTimeout(connectSSE, 3000)
-  }
-
-  fetch('/state').then(function(r) { return r.json() }).then(render)
-}
-
-// ============ 审计弹窗 ============
-var auditRequestId = null
-
-function showAuditModal(evt) {
-  auditRequestId = evt.requestId || null
-  document.getElementById('auditCmd').textContent = evt.command || evt.action || '未知操作'
-  document.getElementById('auditDesc').textContent = 'Claude 请求修改脑图结构：'
-  document.getElementById('auditModal').classList.add('show')
-
-  var countdown = Math.floor((evt.timeout || 30000) / 1000)
-  var el = document.getElementById('auditCountdown')
-  el.textContent = '超时自动拒绝: ' + countdown + 's'
-
-  if (auditTimer) clearInterval(auditTimer)
-  auditTimer = setInterval(function() {
-    countdown--
-    if (countdown <= 0) {
-      clearInterval(auditTimer)
-      auditTimer = null
-      document.getElementById('auditModal').classList.remove('show')
-      fetch('/audit-response', {method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({requestId:auditRequestId,approved:false,reason:'超时自动拒绝'})
-      }).catch(function(){})
-    } else {
-      el.textContent = '超时自动拒绝: ' + countdown + 's'
+    // 审计
+    async function toggleAudit() {
+      await fetch('/audit-toggle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:auditEnabled.value})})
     }
-  }, 1000)
-}
-
-function auditAnswer(approved) {
-  if (auditTimer) { clearInterval(auditTimer); auditTimer = null }
-  document.getElementById('auditModal').classList.remove('show')
-  // 通知 server 解除阻塞
-  fetch('/audit-response', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({requestId:auditRequestId, approved: approved})
-  }).catch(function(){})
-  auditRequestId = null
-}
-
-// ============ 键盘快捷键 ============
-document.addEventListener('keydown', function(e) {
-  if (e.ctrlKey && e.key === 'a') {
-    // Ctrl+A = 切换审计
-    e.preventDefault()
-    var sw = document.getElementById('auditSwitch')
-    sw.checked = !sw.checked
-    toggleAudit(sw.checked)
-  }
-  if (e.key === 'Escape') {
-    document.getElementById('ctxMenu').style.display = 'none'
-    closeModal('notesModal')
-    closeModal('reportModal')
-    if (document.getElementById('auditModal').classList.contains('show')) {
-      auditAnswer(false)
+    function auditAnswer(approved) {
+      if(auditTimer){clearInterval(auditTimer);auditTimer=null}
+      modals.value.audit=false
+      fetch('/audit-response',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({requestId:auditRequestId.value,approved})})
     }
-  }
-})
+    async function archiveAll() {
+      const r = await fetch('/archive',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})})
+      const j = await r.json()
+      alert('已归档 '+(j.count||0)+' 个节点')
+    }
+    async function resetAll() {
+      if(!confirm('确定清空所有节点？')) return
+      await fetch('/reset',{method:'POST'})
+    }
 
-connectSSE()
-window.addEventListener('resize', function() { chart.resize() })
+    // SSE
+    function connectSSE() {
+      es = new EventSource('/sse')
+      es.addEventListener('graph-update', e => {
+        state.value = JSON.parse(e.data)
+        auditEnabled.value = state.value.meta?.auditEnabled === true
+      })
+      es.addEventListener('event', e => {
+        const evt = JSON.parse(e.data)
+        if (evt.type === 'audit_check') {
+          auditRequestId.value = evt.requestId || ''
+          auditCmd.value = evt.command || evt.action || '?'
+          auditCountdown.value = Math.floor((evt.timeout||30000)/1000)
+          modals.value.audit = true
+          if(auditTimer)clearInterval(auditTimer)
+          auditTimer = setInterval(() => {
+            auditCountdown.value--
+            if(auditCountdown.value <= 0){ auditAnswer(false) }
+          },1000)
+        } else {
+          lastEvent.value = '['+new Date().toLocaleTimeString()+'] '+evt.type
+          online.value = true
+        }
+      })
+      es.onopen = () => { online.value = true }
+      es.onerror = () => { online.value = false; es.close(); setTimeout(connectSSE,3000) }
+    }
+
+    onMounted(() => {
+      fetch('/state').then(r=>r.json()).then(s => {
+        state.value = s; auditEnabled.value = s.meta?.auditEnabled === true
+      })
+      connectSSE()
+    })
+    onUnmounted(() => { if(es) es.close(); if(auditTimer) clearInterval(auditTimer) })
+
+    return { state, online, lastEvent, auditEnabled, ctxMenu, editNode, modals, auditCmd, auditCountdown, cursorName,
+      getNode, nodeName, statusIcon, nodeClass, shouldExpandPlan, getPlanSubtree, reportText,
+      showCtxMenu, closeCtxMenu, ctxEdit, ctxReport, ctxMark, ctxTogglePin, ctxSaveNode, ctxDelete, openReport,
+      saveEdit, toggleAudit, auditAnswer, archiveAll, resetAll }
+  }
+}).mount('#app')
 </script>
 </body>
 </html>
