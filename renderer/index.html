@@ -86,6 +86,16 @@ body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color
 .audit-cmd{background:#0d1117;padding:10px;border-radius:6px;font-family:monospace;font-size:11px;margin-bottom:14px;word-break:break-all;max-height:80px;overflow-y:auto}
 .audit-countdown{font-size:10px;color:#8b949e;text-align:center;margin-top:6px}
 .empty-state{color:#8b949e;text-align:center;padding:60px;font-size:14px}
+
+/* 倒计时弹窗 */
+.countdown-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.65);z-index:3000;display:flex;align-items:center;justify-content:center}
+.cd-box{background:#161b22;border:2px solid #fac858;border-radius:16px;padding:28px 32px;text-align:center;box-shadow:0 12px 40px rgba(250,200,88,.2);min-width:300px}
+.cd-icon{font-size:32px;margin-bottom:8px}
+.cd-title{font-size:16px;font-weight:700;color:#fff;margin-bottom:4px}
+.cd-next{font-size:13px;color:#8b949e;margin-bottom:12px}
+.cd-timer{font-size:28px;font-weight:900;color:#fac858;margin-bottom:8px}
+.cd-bar-bg{height:6px;background:#30363d;border-radius:3px;overflow:hidden;margin-bottom:16px}
+.cd-bar-fill{height:100%;background:linear-gradient(90deg,#58a6ff,#3fb950);border-radius:3px;transition:width 1s linear}
 </style>
 </head>
 <body>
@@ -206,6 +216,21 @@ body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color
     </div>
     <div class="audit-countdown">{{ auditCountdown }}s 后自动拒绝</div>
   </div>
+
+  <!-- 倒计时弹窗 -->
+  <div v-if="countdown.show" class="countdown-overlay">
+    <div class="cd-box">
+      <div class="cd-icon">🔄</div>
+      <div class="cd-title">计划链已完成</div>
+      <div class="cd-next">下一条「{{ countdown.nextName }}」</div>
+      <div class="cd-timer">{{ countdown.remaining }}s 后自动开始</div>
+      <div class="cd-bar-bg"><div class="cd-bar-fill" :style="{width:(countdown.remaining/countdown.total*100)+'%'}"></div></div>
+      <div class="btns">
+        <button class="btn danger" @click="stopCountdown">⏸ 暂停</button>
+        <button class="btn" style="background:#238636" @click="advanceNow">▶ 立即开始</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.prod.js"></script>
@@ -219,6 +244,7 @@ createApp({
     const lastEvent = ref('等待连接...')
     const zoom = ref(1); const panX = ref(0); const panY = ref(0)
     let panning=false, panStartX=0, panStartY=0, spaceDown=false
+    const countdown = ref({show:false,remaining:0,total:0,nextName:''})
     const auditEnabled = ref(false)
     const ctxMenu = ref({show:false,nodeId:'',x:0,y:0})
     const editNode = ref({})
@@ -336,6 +362,8 @@ createApp({
       modals.value.audit=false
       fetch('/audit-response',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({requestId:auditRequestId.value,approved})})
     }
+        async function stopCountdown() { fetch('/graph',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'stop-countdown'})}); countdown.value={show:false,remaining:0,total:0,nextName:''} }
+    async function advanceNow() { fetch('/graph',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'advance-plan'})}); countdown.value={show:false,remaining:0,total:0,nextName:''} }
     async function archiveAll() {
       const r = await fetch('/archive',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})})
       const j = await r.json()
@@ -365,6 +393,10 @@ createApp({
             auditCountdown.value--
             if(auditCountdown.value <= 0){ auditAnswer(false) }
           },1000)
+        } else if (evt.type === 'countdown_start' || evt.type === 'countdown_tick') {
+          countdown.value = {show:true, remaining:evt.remaining, total:evt.total, nextName:evt.nextName}
+        } else if (evt.type === 'countdown_done' || evt.type === 'countdown_cancelled') {
+          countdown.value = {show:false, remaining:0, total:0, nextName:''}
         } else {
           lastEvent.value = '['+new Date().toLocaleTimeString()+'] '+evt.type
           online.value = true
@@ -391,10 +423,10 @@ createApp({
     document.addEventListener('keydown',onKeyDown); document.addEventListener('keyup',onKeyUp)
 
     return { state, online, lastEvent, auditEnabled, ctxMenu, editNode, modals, auditCmd, auditCountdown, cursorName,
-      zoom, panX, panY, onZoom, onPanStart, onPanMove, onPanEnd,
+      zoom, panX, panY, onZoom, onPanStart, onPanMove, onPanEnd, countdown,
       getNode, nodeName, statusIcon, beadClass, shouldExpandPlan, getPlanSubtree, reportText,
       showCtxMenu, closeCtxMenu, ctxEdit, ctxReport, ctxMark, ctxTogglePin, ctxSaveNode, ctxDelete, openReport,
-      saveEdit, toggleAudit, auditAnswer, archiveAll, resetAll }
+      saveEdit, toggleAudit, auditAnswer, stopCountdown, advanceNow, archiveAll, resetAll }
   }
 }).mount('#app')
 </script>

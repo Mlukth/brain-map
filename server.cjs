@@ -526,6 +526,13 @@ function handleGraphAction(action, res) {
         node.result.summary = action.auditResult
         node.audited = true; node.auditedAt = now; node.auditedBy = 'claude'
       }
+      // 如果done的是planRoot且是当前链 → 启动倒计时
+      if (S.planRoots && node.planMode && S.planRoots.includes(node.id)) {
+        const idx = S.planRoots.indexOf(node.id)
+        if (idx === (S.meta.currentPlanIndex || 0) && idx < S.planRoots.length - 1) {
+          startCountdown(idx)
+        }
+      }
       break
     }
 
@@ -545,6 +552,30 @@ function handleGraphAction(action, res) {
       break
     }
 
+    case 'stop-countdown': {
+      if (S.meta._countdownTimer) { clearTimeout(S.meta._countdownTimer); S.meta._countdownTimer = null }
+      S.meta._countdown = null
+      broadcast('event', { type:'countdown_cancelled' })
+      result.ok = true
+      break
+    }
+
+    case 'advance-plan': {
+      const next = (S.meta.currentPlanIndex || 0) + 1
+      if (S.planRoots && next < S.planRoots.length) {
+        S.meta.currentPlanIndex = next
+        const nextRoot = S.planRoots[next]
+        const node = S.nodes.find(n => n.id === nextRoot)
+        if (node) { node.status = 'active'; S.meta.cursor = nextRoot }
+        if (S.meta._countdownTimer) { clearTimeout(S.meta._countdownTimer); S.meta._countdownTimer = null }
+        S.meta._countdown = null
+        result.nextChain = nextRoot
+      } else {
+        result.ok = false; result.error = '没有更多计划链'
+      }
+      break
+    }
+
     default:
       result.ok = false; result.error = '未知操作: ' + action.op
   }
@@ -555,6 +586,40 @@ function handleGraphAction(action, res) {
     broadcast('graph-update', S)
   }
   return result
+}
+
+// ============ 倒计时 ============
+function startCountdown(planIdx) {
+  const nextIdx = planIdx + 1
+  if (!S.planRoots || nextIdx >= S.planRoots.length) return
+
+  const nextName = (S.nodes.find(n => n.id === S.planRoots[nextIdx]) || {}).name || '下一条链'
+  const totalSec = 15  // 15秒倒计时（可调）
+  let remaining = totalSec
+
+  S.meta._countdown = { nextIdx, nextName, remaining, total: totalSec }
+  broadcast('event', { type:'countdown_start', remaining, total: totalSec, nextName, nextIdx })
+
+  function tick() {
+    remaining--
+    S.meta._countdown.remaining = remaining
+    broadcast('event', { type:'countdown_tick', remaining, nextName, nextIdx })
+    if (remaining <= 0) {
+      S.meta._countdownTimer = null
+      S.meta._countdown = null
+      // 自动递进
+      S.meta.currentPlanIndex = nextIdx
+      const nextRoot = S.planRoots[nextIdx]
+      const node = S.nodes.find(n => n.id === nextRoot)
+      if (node) { node.status = 'active'; S.meta.cursor = nextRoot }
+      deriveState(); save()
+      broadcast('graph-update', S)
+      broadcast('event', { type:'countdown_done', nextIdx, nextRoot })
+    } else {
+      S.meta._countdownTimer = setTimeout(tick, 1000)
+    }
+  }
+  S.meta._countdownTimer = setTimeout(tick, 1000)
 }
 
 // ============ 归档导出 ============
