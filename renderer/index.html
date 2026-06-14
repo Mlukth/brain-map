@@ -296,9 +296,9 @@ createApp({
         const node = getNode(nodeId)
         if (!node || !node.children) return
         node.children.forEach(cid => {
-          if (!chainSet.has(cid) && !result.includes(cid)) {
-            result.push(cid)
-            walk(cid)
+          if (!result.includes(cid)) {
+            if (!chainSet.has(cid)) result.push(cid)
+            walk(cid)  // always descend for grandchildren
           }
         })
       }

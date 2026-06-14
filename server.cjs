@@ -704,6 +704,11 @@ const server = http.createServer((req, res) => {
   if (req.url === '/sse') {
     res.writeHead(200, {'Content-Type':'text/event-stream','Cache-Control':'no-cache','Connection':'keep-alive'})
     res.write(`data: ${JSON.stringify({type:'connected'})}\n\n`)
+    // 如果有活跃倒计时，立即推给新客户端
+    if (S.meta._countdown) {
+      const cd = S.meta._countdown
+      res.write(`event: event\ndata: ${JSON.stringify({type:'countdown_start',remaining:cd.remaining,total:cd.total,nextName:cd.nextName,nextIdx:cd.nextIdx})}\n\n`)
+    }
     clients.push(res)
     req.on('close', () => { const i = clients.indexOf(res); if (i>=0) clients.splice(i,1) })
     return
