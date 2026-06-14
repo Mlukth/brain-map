@@ -1,30 +1,79 @@
-Brain Map v2 - Phase 1 Session Summary (2026-06-14~15)
-============================================================
+Brain Map v2 - 完整会话记录 (2026-06-14~15)
+================================================
 
-Key Deliverables:
-- server.cjs: cursor + planMode + planRoots + /graph API + audit endpoints + archive + anti-dead-loop
-- hook-forwarder.js: UserPromptSubmit context injection + SessionStart auto-launch + PreToolUse audit interception
-- renderer/index.html: gray plan nodes + context menu + audit toggle + confirmation Modal + node report + clear button
-- settings.json: 7 hooks registered + timeout tuning
+## 核心成果
+完成了脑图 v2 的完整需求讨论、技术方案、分期实现、验证闭环。
 
-Core Design Decisions:
-1. Cursor = server memory pointer, UserPromptSubmit injects +/-3 nodes
-2. Plan nodes = planMode:true, gray dashed border. Cursor activates: bright color + yellow border
-3. Multiple parallel plan chains = S.planRoots[] + currentPlanIndex
-4. Audit = PreToolUse blocks + SSE + browser Modal + 30s timeout auto-deny
-5. Session lifecycle, valuable nodes exported to JSONL archive
+## 技术栈
+- 后端: Node.js HTTP server.cjs (47635端口)
+- 前端: Vue 3 CDN (renderer/index.html) — 珠链式圆形节点 + CSS flexbox
+- Hook: hook-forwarder.js (ESM, stdin→HTTP)
+- 存储: brain-map-state-{sessionId}.json (会话级)
+- 通信: SSE (server→browser) + HTTP POST (browser→server)
+- 归档: D:/docs/brain-map-archive.jsonl (JSONL追加)
+- Git: https://github.com/Mlukth/brain-map
 
-Plan Chain Color Table:
-- Plan pending: #666 gray dashed
-- Cursor active: task line color + white border + yellow (#fac858)
-- Action executing: colored + white border
-- Done: colored semi-transparent + checkmark
-- Failed: red border (#f85149) + X mark
-- Shelved: gray dashed semi-transparent
+## 已验证功能清单
+| 功能 | 状态 |
+|------|------|
+| 游标系统 + Hook注入上下文 | ✅ |
+| 计划经济灰色链 (planMode) | ✅ |
+| planRoots 多条平行计划链 | ✅ |
+| 珠链式节点渲染(方案E) | ✅ |
+| 分支action珠子展示 | ✅ (修复getPlanSubtree遍历bug) |
+| 审计弹窗 (开→curl→SSE→Modal→确认→回传) | ✅ |
+| 倒计时自动递进 (链done→15s→下一链) | ✅ |
+| 缩放 (滚轮 .3x~3x) + 拖拽 (空格+鼠标) | ✅ |
+| 右键菜单 (编辑备注/标记/删节点/保存) | ✅ |
+| 节点报告弹窗 (finalReport) | ✅ |
+| 归档 JSONL | ✅ |
+| 防死循环 (3次失败标红 | ✅ |
 
-Not Yet Implemented:
-- Countdown auto-advance (code)
-- Parallel swimlane rendering
-- Audit popup real trigger verification
+## 关键Bug修复记录
+1. getPlanSubtree: 链上节点停止深搜→action丢失。修复: 继续下探到孙子节点
+2. 审计弹窗Modal闪烁: v-if→v-show, state更新不再移除Modal DOM
+3. SSE倒计时重连: 新连接推活跃倒计时状态
+4. /init根节点缺失: ensure-root逻辑, deriveState在/init中调用
+5. 审查弹窗v-show修复后仍闪烁: 硬刷新缓存问题
 
-Git: https://github.com/Mlukth/brain-map
+## 节点颜色体系 (6态)
+- 计划pending: #666灰色虚线 56px
+- 游标active: 任务线色+黄框+光环动画 74px
+- 计划done: 彩色半透 48px
+- 计划failed: 红框 60px
+- action active: 绿色 46px
+- action done: 灰色半透 38px
+
+## 蓝图先行工程方法
+1. 讨论需求→确认→拆目标节点→写TECHNICAL_PLAN→分期→确认→再写代码
+2. AI不拍脑袋, 蓝图确认再动手
+3. 脑图是可视化载体: 灰色珠=计划, 游标亮珠=当前, 彩色小珠=动作, 红珠=失败
+
+## 服务端点
+- GET /state — 全量状态
+- GET /context?radius=N — 游标上下文(文本)
+- POST /graph — 图操作 (create-node/delete-node/update-node/move-cursor/mark-done/mark-failed/stop-countdown/advance-plan)
+- POST /init — 会话初始化
+- POST /cleanup — 会话清理+归档
+- POST /audit-request — 审计阻塞请求
+- POST /audit-response — 审计回应
+- POST /audit-toggle — 开关审计
+- POST /archive — 归档导出
+- GET /sse — SSE推送
+- GET /health — 健康检查
+
+## Git记录 (本次会话)
+1. 82d3dfb - Phase 1: 游标+计划经济+审计开关+多计划链
+2. d80f9de - Phase 2: 修复灰色节点逻辑 + 审计端点 + 文档更新
+3. f4df0f3 - Phase 3: 平行泳道渲染
+4. d2a65b6 - Renderer: Vue 3 CDN 重构
+5. d65507e - Renderer: 方案E 珠链式节点
+6. db8bff7 - Renderer: 缩放+拖拽
+7. aeede22 - Phase 3: 倒计时自动递进
+8. 0ba632d - Fix: 分支遍历 + SSE倒计时重连
+9. 7b8d27e - Fix: modal闪烁 v-if→v-show
+
+## 运行方式
+cd D:/scripts/brain-map && node server.cjs
+浏览器: http://127.0.0.1:47635
+脑图依赖 Hook 自动启动 (SessionStart)
