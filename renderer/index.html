@@ -29,29 +29,35 @@ body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color
 .chain-row{display:flex;align-items:flex-start;gap:0;margin-bottom:16px;position:relative}
 .chain-label{writing-mode:vertical-lr;font-size:10px;color:#8b949e;padding:8px 4px;flex-shrink:0;text-align:center}
 .chain-nodes{display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap}
-.chain-arrow{color:#58a6ff;font-size:20px;font-weight:bold;align-self:center;flex-shrink:0}
+.bead-link{color:#58a6ff;font-size:20px;font-weight:bold;align-self:center;flex-shrink:0}
 
-/* 节点 */
-.node{min-width:72px;min-height:72px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:10px;font-weight:bold;text-align:center;line-height:1.2;cursor:pointer;transition:all .2s;position:relative;padding:4px}
-.node:hover{transform:scale(1.1);z-index:10}
-.node.root{background:#8883;border:2px solid #8886;color:#ccc}
-.node.plan-pending{background:#4442;border:2px dashed #666;color:#999}
-.node.plan-active{background:#5470c6cc;border:3px solid #fac858;color:#fff;box-shadow:0 0 12px rgba(250,200,88,.4)}
-.node.plan-done{background:#5470c644;border:2px solid #5470c666;color:#bbb;opacity:.6}
-.node.plan-failed{background:#ee666644;border:3px solid #f85149;color:#faa}
-.node.action-active{background:#5470c6cc;border:2px solid #fff;color:#fff}
-.node.action-done{background:#5470c644;border:1px solid #8884;color:#aaa;opacity:.5}
-.node.action-failed{background:#ee666644;border:2px solid #f85149;color:#faa}
-.node.shelved{background:#0003;border:2px dashed #888;color:#888;opacity:.5}
-.node.branch{background:#91cc7544;border:2px solid #91cc7566;color:#ddd}
+/* 珠链式节点 — 保证始终正圆 */
+.bead{flex-shrink:0;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;cursor:pointer;position:relative;transition:all .25s cubic-bezier(.4,0,.2,1);font-weight:700;line-height:1.2;overflow:hidden}
+.bead:hover{filter:brightness(1.2);z-index:10}
+.bead .icon{font-size:12px}
+.bead .name{word-break:break-all}
 
-.icon{font-size:12px}.name{max-width:70px;word-break:break-all}
-.note-preview{font-size:7px;color:#888;max-width:68px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.cursor-dot{position:absolute;top:-2px;right:-2px;width:12px;height:12px;border-radius:50%;background:#fac858;border:2px solid #fff;animation:pulse 1s infinite}
-@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(250,200,88,.6)}50%{box-shadow:0 0 0 8px rgba(250,200,88,0)}}
+.bead.root{width:44px;height:44px;min-width:44px;min-height:44px;background:linear-gradient(135deg,#2d333b,#22272e);border:2px solid #444c56;color:#768390;font-size:8px}
+.bead.plan-pending{width:56px;height:56px;min-width:56px;min-height:56px;background:linear-gradient(135deg,#1c2128,#1a1e24);border:2px dashed #444c56;color:#8b949e;font-size:9px}
+.bead.plan-active{width:74px;height:74px;min-width:74px;min-height:74px;background:linear-gradient(135deg,#2d3c5a,#1e2d4a);border:3px solid #fac858;color:#fff;font-size:10px;box-shadow:0 0 16px rgba(250,200,88,.25)}
+.bead.plan-active::after{content:'';position:absolute;inset:-8px;border-radius:50%;border:2px solid rgba(250,200,88,.3);animation:ringPulse 2s ease-out infinite;pointer-events:none}
+@keyframes ringPulse{0%,100%{transform:scale(1);opacity:.4}50%{transform:scale(1.2);opacity:.8}}
+.bead.plan-done{width:48px;height:48px;min-width:48px;min-height:48px;background:linear-gradient(135deg,#1a2a1a,#1a241a);border:2px solid #2d4a2d;color:#768390;opacity:.55;font-size:12px}
+.bead.plan-failed{width:60px;height:60px;min-width:60px;min-height:60px;background:linear-gradient(135deg,#2d1a1a,#241a1a);border:3px solid #f85149;color:#faa;font-size:9px;box-shadow:0 0 10px rgba(248,81,73,.2)}
+.bead.action-active{width:46px;height:46px;min-width:46px;min-height:46px;background:linear-gradient(135deg,#1a3a2a,#1a3322);border:2px solid #3fb950;color:#7ee787;font-size:8px}
+.bead.action-done{width:38px;height:38px;min-width:38px;min-height:38px;background:linear-gradient(135deg,#1a222a,#1a1e24);border:1px solid #2d3a2d;color:#444;opacity:.35;font-size:8px}
+.bead.action-failed{width:46px;height:46px;min-width:46px;min-height:46px;background:linear-gradient(135deg,#2d1a1a,#241a1a);border:2px solid #f85149;color:#faa;font-size:8px}
+.bead.shelved{width:42px;height:42px;min-width:42px;min-height:42px;background:#1c2128;border:2px dashed #333;color:#555;opacity:.35;font-size:8px}
+.bead.branch{width:46px;height:46px;min-width:46px;min-height:46px;background:linear-gradient(135deg,#1a2a22,#1a2620);border:2px solid #347d39;color:#7ee787;font-size:8px}
+
+.note-preview{font-size:7px;color:#6e7681;max-width:90%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px}
+.cursor-dot{position:absolute;top:-3px;right:-3px;width:10px;height:10px;border-radius:50%;background:#fac858;z-index:2;border:1px solid #0d1117}
+
+/* 链节连接线 */
+.bead-link{width:20px;height:2px;background:#30363d;flex-shrink:0;border-radius:1px;align-self:center}
 
 /* 分支区 */
-.branch-area{margin-left:28px;padding-left:12px;border-left:2px dashed #58a6ff55;display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start}
+.branch-area{margin-left:28px;padding:6px 0 6px 14px;border-left:1.5px solid #58a6ff33;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 
 /* 底部 */
 .bottombar{min-height:32px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:#161b22;border-top:1px solid #30363d;flex-shrink:0;font-size:10px;color:#8b949e}
@@ -105,9 +111,9 @@ body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color
       <div class="chain-label">主链</div>
       <div class="chain-nodes">
         <template v-for="(cid, idx) in state.chain" :key="cid">
-          <div class="chain-arrow" v-if="idx>0 && idx%2===0">↓</div>
-          <div class="chain-arrow" v-if="idx>0 && idx%2===1">→</div>
-          <div :class="nodeClass(cid)" @click="openReport(cid)" @contextmenu.prevent="showCtxMenu($event, cid)">
+          <div class="bead-link" v-if="idx>0 && idx%2===0">↓</div>
+          <div class="bead-link" v-if="idx>0 && idx%2===1">→</div>
+          <div :class="beadClass(cid)" @click="openReport(cid)" @contextmenu.prevent="showCtxMenu($event, cid)">
             <span class="icon">{{ statusIcon(cid) }}</span>
             <span class="name">{{ nodeName(cid) }}</span>
             <span class="note-preview" v-if="getNode(cid).notes">{{ getNode(cid).notes.substring(0,12) }}…</span>
@@ -122,7 +128,7 @@ body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color
       <div class="chain-label">{{ getNode(rid).name }}</div>
       <div>
         <div class="chain-nodes">
-          <div :class="nodeClass(rid)" @click="openReport(rid)" @contextmenu.prevent="showCtxMenu($event, rid)">
+          <div :class="beadClass(rid)" @click="openReport(rid)" @contextmenu.prevent="showCtxMenu($event, rid)">
             <span class="icon">{{ statusIcon(rid) }}</span>
             <span class="name">{{ getNode(rid).name }}</span>
             <span class="cursor-dot" v-if="state.meta.cursor === rid"></span>
@@ -131,13 +137,13 @@ body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color
         <!-- 该计划根下的分支子节点树 -->
         <div class="branch-area" v-if="shouldExpandPlan(rid)">
           <template v-for="cid in getPlanSubtree(rid)" :key="cid">
-            <div :class="nodeClass(cid)" @click="openReport(cid)" @contextmenu.prevent="showCtxMenu($event, cid)">
+            <div :class="beadClass(cid)" @click="openReport(cid)" @contextmenu.prevent="showCtxMenu($event, cid)">
               <span class="icon">{{ statusIcon(cid) }}</span>
               <span class="name">{{ nodeName(cid) }}</span>
               <span class="note-preview" v-if="getNode(cid).notes">{{ getNode(cid).notes.substring(0,10) }}…</span>
               <span class="cursor-dot" v-if="state.meta.cursor === cid"></span>
             </div>
-            <div class="chain-arrow">→</div>
+            <div class="bead-link">→</div>
           </template>
         </div>
       </div>
@@ -233,9 +239,9 @@ createApp({
       const n = getNode(id)
       return n.status === 'done' ? '✓' : n.status === 'failed' ? '✗' : n.status === 'active' ? '▶' : n.status === 'shelved' ? '⊘' : '⏳'
     }
-    function nodeClass(id) {
+    function beadClass(id) {
       const n = getNode(id)
-      return 'node ' + (
+      return 'bead ' + (
         n.type === 'root' ? 'root' :
         n.planMode && n.status === 'failed' ? 'plan-failed' :
         n.planMode && n.status === 'active' ? 'plan-active' :
@@ -373,7 +379,7 @@ createApp({
     onUnmounted(() => { if(es) es.close(); if(auditTimer) clearInterval(auditTimer) })
 
     return { state, online, lastEvent, auditEnabled, ctxMenu, editNode, modals, auditCmd, auditCountdown, cursorName,
-      getNode, nodeName, statusIcon, nodeClass, shouldExpandPlan, getPlanSubtree, reportText,
+      getNode, nodeName, statusIcon, beadClass, shouldExpandPlan, getPlanSubtree, reportText,
       showCtxMenu, closeCtxMenu, ctxEdit, ctxReport, ctxMark, ctxTogglePin, ctxSaveNode, ctxDelete, openReport,
       saveEdit, toggleAudit, auditAnswer, archiveAll, resetAll }
   }
