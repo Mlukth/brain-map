@@ -73,6 +73,10 @@ Brain Map v2 - 完整会话记录 (2026-06-14~15)
 8. 0ba632d - Fix: 分支遍历 + SSE倒计时重连
 9. 7b8d27e - Fix: modal闪烁 v-if→v-show
 
+## 未来方向（未实现）
+1. 多CLI介入时的脑图 — 多个CLI窗口各自的链如何处理，session分流
+2. 脑图与pv-station-admin项目结构树/任务卡片融合 — 脑图的计划链节点作为任务卡片的可视化前端
+
 ## 运行方式
 cd D:/scripts/brain-map && node server.cjs
 浏览器: http://127.0.0.1:47635
