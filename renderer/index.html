@@ -154,47 +154,134 @@ function assignCategory(nodes, taskLines) {
   })
 }
 
+var SWIMLANE_GAP = 260
+
 function chainLayout(data) {
   var nodes = data.nodes, links = data.links, chain = data.chain || []
+  var planRoots = data.planRoots || [], meta = data.meta || {}
+  var currentPlanIdx = meta.currentPlanIndex || 0
   var children = {}, positions = {}, visited = {}
+
   nodes.forEach(function(n) { children[n.id] = [] })
   links.forEach(function(l) { if (children[l.source]) children[l.source].push(l.target) })
 
-  var chainIdx = {}
-  chain.forEach(function(id, i) { chainIdx[id] = i })
+  // 建立plan root → 所属节点集合
+  var planMembers = {}
+  function collectPlanTree(rid) {
+    if (planMembers[rid]) return
+    planMembers[rid] = new Set()
+    var stack = [rid]
+    while (stack.length > 0) {
+      var cid = stack.pop()
+      if (!planMembers[rid].has(cid)) {
+        planMembers[rid].add(cid)
+        ;(children[cid] || []).forEach(function(kid) { stack.push(kid) })
+      }
+    }
+  }
+  planRoots.forEach(function(rid) { collectPlanTree(rid) })
+
+  // 判断节点属于哪个plan
+  function getPlanIndex(id) {
+    for (var i = 0; i < planRoots.length; i++) {
+      if (planMembers[planRoots[i]] && planMembers[planRoots[i]].has(id)) return i
+    }
+    return -1
+  }
 
   function layout(id, x, y, depth) {
     if (visited[id]) return
     visited[id] = true
     positions[id] = { x: x, y: y, depth: depth }
+
     var kids = children[id] || []
-    kids.forEach(function(cid, i) {
-      if (chain.indexOf(cid) >= 0) {
-        var cx = chainIdx[cid] != null ? chainIdx[cid] * CHAIN_X + 100 : x + CHAIN_X
-        layout(cid, cx, CHAIN_Y, 0)
-      } else {
-        layout(cid, x + 100, y + 80 + i * BRANCH_GAP, depth + 1)
-      }
+    // 分离：链上子节点 vs 分支子节点
+    var chainKids = kids.filter(function(k) { return chain.indexOf(k) >= 0 })
+    var branchKids = kids.filter(function(k) { return chain.indexOf(k) < 0 })
+
+    // 链上子节点：水平展开
+    chainKids.forEach(function(cid, i) {
+      layout(cid, x + CHAIN_X + i * 20, y, 0)
+    })
+
+    // 分支子节点：垂直排列
+    branchKids.forEach(function(cid, i) {
+      layout(cid, x + 80, y + 80 + i * BRANCH_GAP, depth + 1)
     })
   }
 
-  var roots = []
-  if (chain.length > 0) {
-    var firstChain = nodes.find(function(n) { return n.id === chain[0] })
-    if (firstChain) roots = [firstChain]
-  }
-  if (roots.length === 0) {
-    roots = nodes.filter(function(n) { return n.type === 'root' })
-  }
-  if (roots.length === 0 && nodes.length > 0) roots = [nodes[0]]
-  roots.forEach(function(r) {
-    layout(r.id, 100, CHAIN_Y, 0)
+  // === 主链布局 ===
+  var chainRoot = chain.length > 0 ? nodes.find(function(n) { return n.id === chain[0] }) : null
+  if (!chainRoot) chainRoot = nodes.find(function(n) { return n.type === 'root' })
+  if (!chainRoot && nodes.length > 0) chainRoot = nodes[0]
+
+  if (chainRoot) layout(chainRoot.id, 100, CHAIN_Y, 0)
+
+  // === 同步节点访问 ===
+  // 把未访问的链上节点，按 chain 顺序补布局
+  var lastVisitedChainX = 0
+  chain.forEach(function(cid) {
+    if (!visited[cid]) {
+      layout(cid, lastVisitedChainX + CHAIN_X, CHAIN_Y, 0)
+    }
+    if (positions[cid]) lastVisitedChainX = Math.max(lastVisitedChainX, positions[cid].x)
   })
 
-  // 孤儿节点
+  // === 泳道：计划链子树 ===
+  planRoots.forEach(function(planId, i) {
+    var planNode = nodes.find(function(n) { return n.id === planId })
+    if (!planNode) return
+
+    // 如果planRoot在链上已被布局，跳过主节点布局但要补分支
+    // 如果没被访问 → 单独布局到对应泳道
+    var planY = CHAIN_Y + SWIMLANE_GAP * (i + 1)
+
+    // 展开当前链，折叠待做链
+    var isCurrent = (i === currentPlanIdx)
+    var isDone = planNode.status === 'done' || planNode.status === 'failed'
+
+    if (isCurrent || isDone) {
+      // 展开：布局所有子节点
+      var planKids = children[planId] || []
+      planKids.forEach(function(cid, j) {
+        if (!visited[cid]) {
+          layout(cid, 180, planY, 0)
+          // 继续遍历这个子节点的children
+          function layoutSubtree(pid, px, py, pi, pdepth) {
+            if (visited[pid]) return
+            visited[pid] = true
+            positions[pid] = { x: px, y: py, depth: pdepth }
+            var subKids = children[pid] || []
+            subKids.forEach(function(sid, si) {
+              if (!visited[sid]) {
+                layoutSubtree(sid, px + CHAIN_X + si * 20, py, si, pdepth + 1)
+              }
+            })
+          }
+          // 把cid的子节点也遍历
+          function dfs(kid, kx, ky, kd) {
+            if (visited[kid]) return
+            visited[kid] = true
+            positions[kid] = { x: kx, y: ky, depth: kd }
+            ;(children[kid] || []).forEach(function(gcid, gi) {
+              if (!visited[gcid]) dfs(gcid, kx + CHAIN_X + gi * 20, ky, kd + 1)
+            })
+          }
+          dfs(cid, 180, planY, 0)
+        })
+      })
+    }
+    // 折叠的链：只显示plan节点本身（如果还没被布局的话）
+    if (!positions[planId]) {
+      positions[planId] = { x: 100 + 80 * i, y: planY, depth: 0 }
+      visited[planId] = true
+    }
+  })
+
+  // === 孤儿节点 ===
   var orphans = nodes.filter(function(n) { return !visited[n.id] })
   if (orphans.length > 0) {
-    var baseY = CHAIN_Y + 500
+    var baseY = CHAIN_Y + SWIMLANE_GAP * (planRoots.length + 1) + 100
     var groups = {}
     orphans.forEach(function(n) {
       var tl = n.taskLine || '__orphan__'
