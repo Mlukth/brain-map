@@ -264,10 +264,13 @@ async function main() {
   // ---- PostToolUse / Stop / 其他事件 → 直接转发 ----
   await postJSON(`${SERVER_URL}/events`, event)
 
-  // ---- SessionEnd → 清理 ----
-  // 注：SessionEnd 不直接传 type:done，而是发 cleanup
-  // 但 Claude Code 的 Stop hook 才是真正的"完成"
-  // SessionEnd hook 做清理（如果注册了的话）
+  // A3 修复: Stop 事件 → 通知 server 清理会话
+  if (event.type === 'done') {
+    await postJSON(`${SERVER_URL}/cleanup`, {
+      sessionId: event.sessionId,
+      archive: true
+    })
+  }
 
   process.exit(0)
 }

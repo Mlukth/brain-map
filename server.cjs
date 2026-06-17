@@ -24,9 +24,87 @@ let S = defaultState()
 let CURRENT_STATE_FILE = null
 
 function save() {
-  if (!CURRENT_STATE_FILE) return
-  S.meta.lastUpdate = new Date().toISOString()
-  fs.writeFileSync(CURRENT_STATE_FILE, JSON.stringify(S, null, 2))
+  if (S._stateFile) {
+    S.meta.lastUpdate = new Date().toISOString()
+    fs.writeFileSync(S._stateFile, JSON.stringify(S, null, 2))
+  } else if (CURRENT_STATE_FILE) {
+    S.meta.lastUpdate = new Date().toISOString()
+    fs.writeFileSync(CURRENT_STATE_FILE, JSON.stringify(S, null, 2))
+  }
+}
+
+// ============ 多会话管理 ============
+const sessions = new Map()  // sessionId → State
+
+function getOrCreateSession(sessionId) {
+  if (!sessionId) sessionId = 'default'
+  if (sessions.has(sessionId)) return sessions.get(sessionId)
+
+  const file = stateFile(sessionId)
+  let state
+  try {
+    if (fs.existsSync(file)) {
+      state = JSON.parse(fs.readFileSync(file, 'utf8'))
+      if (!state.taskLines) state.taskLines = {}
+      if (!state.chain) state.chain = []
+      if (!state.planRoots) state.planRoots = []
+      if (!state.meta) state.meta = {}
+      if (!state.meta.cursor) state.meta.cursor = null
+    } else {
+      state = defaultState()
+    }
+  } catch(e) { state = defaultState() }
+
+  // A1 修复: 确保已加载的状态有 root 节点
+  if (!state.nodes.find(n => n.type === 'root')) {
+    const rootId = 'root-' + Date.now()
+    state.nodes.push(newNode(rootId, { name:'会话开始', type:'root', taskLine:'__root__',
+      symbolSize:48, status:'done', createdAt: new Date().toISOString() }))
+    if (!state.taskLines['__root__']) state.taskLines['__root__'] = { name:'会话', color:'#888' }
+  }
+  if (!state.meta.cursor) {
+    state.meta.cursor = state.nodes.find(n => n.type === 'root')?.id || state.nodes[0]?.id || null
+  }
+  if (!state.planRoots) state.planRoots = []
+
+  state._stateFile = file
+  state._sessionId = sessionId
+  sessions.set(sessionId, state)
+  return state
+}
+
+function saveSession(state) {
+  if (!state || !state._stateFile) return
+  state.meta.lastUpdate = new Date().toISOString()
+  fs.writeFileSync(state._stateFile, JSON.stringify(state, null, 2))
+}
+
+function getMultiView() {
+  const sessionList = []
+  for (const [sid, state] of sessions) {
+    sessionList.push({
+      sessionId: sid,
+      nodes: state.nodes,
+      links: state.links,
+      chain: state.chain,
+      planRoots: state.planRoots,
+      taskLines: state.taskLines,
+      meta: state.meta
+    })
+  }
+  if (sessionList.length === 0) {
+    // fallback: 用当前 S
+    sessionList.push({
+      sessionId: S._sessionId || 'default',
+      nodes: S.nodes,
+      links: S.links,
+      chain: S.chain,
+      planRoots: S.planRoots,
+      taskLines: S.taskLines,
+      meta: S.meta
+    })
+  }
+  return { sessions: sessionList, multiSession: true }
 }
 
 // ============ 任务线管理 ============
@@ -243,6 +321,10 @@ function broadcast(evt, data) {
 
 // ============ 事件处理 ============
 function handleEvent(evt) {
+  // 多会话路由: 按 sessionId 加载对应状态
+  const sessionId = evt.sessionId || 'default'
+  S = getOrCreateSession(sessionId)
+  CURRENT_STATE_FILE = S._stateFile
   const now = new Date().toISOString()
 
   switch (evt.type) {
@@ -316,9 +398,15 @@ function handleEvent(evt) {
       touchFile(tlKey, filePath)
       activateTaskLine(tlKey)
 
-      // 游标不动 — tool 是 action 分支，不改变游标
-      const parent = [...S.nodes].reverse()
-        .find(n => n.taskLine === tlKey && n.type === 'goal')
+      // A2 修复: 优先用游标定位父 goal，避免同 taskLine 多 goal 时找错
+      let parent = null
+      const cursorNode = S.meta.cursor && S.nodes.find(n => n.id === S.meta.cursor)
+      if (cursorNode && cursorNode.type === 'goal') {
+        parent = cursorNode
+      } else {
+        parent = [...S.nodes].reverse()
+          .find(n => n.taskLine === tlKey && n.type === 'goal')
+      }
 
       if (parent) {
         const id = 'action-' + Date.now()
@@ -392,7 +480,7 @@ function handleEvent(evt) {
 
   deriveState()
   save()
-  broadcast('graph-update', S)
+  broadcast('graph-update', getMultiView())
   broadcast('event', evt)
 }
 
@@ -583,7 +671,7 @@ function handleGraphAction(action, res) {
   if (result.ok) {
     deriveState()
     save()
-    broadcast('graph-update', S)
+    broadcast('graph-update', getMultiView())
   }
   return result
 }
@@ -613,7 +701,7 @@ function startCountdown(planIdx) {
       const node = S.nodes.find(n => n.id === nextRoot)
       if (node) { node.status = 'active'; S.meta.cursor = nextRoot }
       deriveState(); save()
-      broadcast('graph-update', S)
+      broadcast('graph-update', getMultiView())
       broadcast('event', { type:'countdown_done', nextIdx, nextRoot })
     } else {
       S.meta._countdownTimer = setTimeout(tick, 1000)
@@ -716,14 +804,23 @@ const server = http.createServer((req, res) => {
 
   // 状态查询
   if (req.url === '/state' || req.url.startsWith('/state?')) {
+    const url = new URL(req.url, 'http://127.0.0.1')
+    const sid = url.searchParams.get('sessionId')
+    if (sid) {
+      const state = getOrCreateSession(sid)
+      res.writeHead(200, {'Content-Type':'application/json'})
+      return res.end(JSON.stringify(state))
+    }
     res.writeHead(200, {'Content-Type':'application/json'})
-    return res.end(JSON.stringify(S))
+    return res.end(JSON.stringify(getMultiView()))
   }
 
   // 游标上下文（压缩格式，给 Claude 用）
   if (req.url.startsWith('/context')) {
     const url = new URL(req.url, 'http://127.0.0.1')
     const radius = parseInt(url.searchParams.get('radius') || '3')
+    const sid = url.searchParams.get('sessionId') || 'default'
+    S = getOrCreateSession(sid)
     const windowNodes = getContextWindow(S.meta.cursor, radius)
     const text = formatContext(windowNodes, S.meta.cursor)
     const stalled = hasStalledNode(windowNodes)
@@ -738,6 +835,11 @@ const server = http.createServer((req, res) => {
     req.on('end', () => {
       try {
         const action = JSON.parse(body)
+        // 会话路由: 如果请求带了 sessionId，切换到对应会话
+        if (action.sessionId) {
+          S = getOrCreateSession(action.sessionId)
+          CURRENT_STATE_FILE = S._stateFile
+        }
         const result = handleGraphAction(action, res)
         res.writeHead(result.ok ? 200 : 400, {'Content-Type':'application/json'})
         res.end(JSON.stringify(result))
@@ -781,7 +883,7 @@ const server = http.createServer((req, res) => {
         const params = JSON.parse(body || '{}')
         S.meta.auditEnabled = params.enabled !== undefined ? params.enabled : !S.meta.auditEnabled
         save()
-        broadcast('graph-update', S)
+        broadcast('graph-update', getMultiView())
         res.writeHead(200, {'Content-Type':'application/json'})
         res.end(JSON.stringify({ok:true, auditEnabled: S.meta.auditEnabled}))
       } catch(e) {
@@ -811,30 +913,14 @@ const server = http.createServer((req, res) => {
       try {
         const params = JSON.parse(body || '{}')
         const sessionId = params.sessionId || 'default'
-        CURRENT_STATE_FILE = stateFile(sessionId)
-        // 加载已有 state（如果存在）
-        try {
-          if (fs.existsSync(CURRENT_STATE_FILE)) {
-            S = JSON.parse(fs.readFileSync(CURRENT_STATE_FILE, 'utf8'))
-            if (!S.taskLines) S.taskLines = {}
-            if (!S.chain) S.chain = []
-            if (!S.meta.cursor) S.meta.cursor = S.chain[0] || null
-          }
-        } catch(e) { S = defaultState() }
-        // 确保有根节点和游标
-        if (!S.nodes.find(n => n.type === 'root')) {
-          const rootId = 'root-' + Date.now()
-          S.nodes.push(newNode(rootId, { name:'会话开始', type:'root', taskLine:'__root__',
-            symbolSize:48, status:'done', createdAt: new Date().toISOString() }))
-          if (!S.taskLines['__root__']) S.taskLines['__root__'] = { name:'会话', color:'#888' }
-        }
-        if (!S.meta.cursor) S.meta.cursor = S.nodes.find(n => n.type === 'root')?.id || S.nodes[0]?.id || null
+        S = getOrCreateSession(sessionId)
+        CURRENT_STATE_FILE = S._stateFile
         S.meta.sessionId = sessionId
         deriveState()
         save()
-        broadcast('graph-update', S)
+        broadcast('graph-update', getMultiView())
         res.writeHead(200, {'Content-Type':'application/json'})
-        res.end(JSON.stringify({ok:true, stateFile: CURRENT_STATE_FILE}))
+        res.end(JSON.stringify({ok:true, stateFile: S._stateFile, sessionId}))
       } catch(e) {
         res.writeHead(400, {'Content-Type':'application/json'})
         res.end(JSON.stringify({ok:false, error:e.message}))
@@ -850,15 +936,23 @@ const server = http.createServer((req, res) => {
     req.on('end', () => {
       try {
         const params = JSON.parse(body || '{}')
+        const sid = params.sessionId || S._sessionId || 'default'
         // 先归档有价值节点
         if (params.archive !== false) archiveChain()
-        // 删除 state 文件
-        if (CURRENT_STATE_FILE && fs.existsSync(CURRENT_STATE_FILE)) {
-          fs.unlinkSync(CURRENT_STATE_FILE)
+        // 删除 state 文件 + 从 sessions Map 移除
+        const file = stateFile(sid)
+        if (fs.existsSync(file)) fs.unlinkSync(file)
+        sessions.delete(sid)
+        if (sessions.size > 0) {
+          // 切到第一个剩余 session
+          const first = sessions.values().next().value
+          S = first
+          CURRENT_STATE_FILE = first._stateFile
+        } else {
+          S = defaultState()
+          CURRENT_STATE_FILE = null
         }
-        S = defaultState()
-        CURRENT_STATE_FILE = null
-        broadcast('graph-update', S)
+        broadcast('graph-update', getMultiView())
         res.writeHead(200, {'Content-Type':'application/json'})
         res.end(JSON.stringify({ok:true}))
       } catch(e) {
@@ -870,7 +964,7 @@ const server = http.createServer((req, res) => {
   }
 
   if (req.url === '/reset' && req.method === 'POST') {
-    S = defaultState(); save(); broadcast('graph-update', S)
+    S = defaultState(); save(); broadcast('graph-update', getMultiView())
     return res.end(JSON.stringify({ok:true}))
   }
   if (req.url === '/health') {

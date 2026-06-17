@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Brain Map v2</title>
+<title>Brain Map v2.1</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color:#e0e0e0;height:100vh;overflow:hidden}
@@ -24,14 +24,19 @@ body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color
 .btn:hover{background:#30363d;border-color:#58a6ff}
 .btn.danger{color:#f85149}.btn.danger:hover{background:#3d1f1f}
 
-/* 链视图 */
+/* 泳道 */
 .chain-view{flex:1;overflow:auto;padding:20px}
-.chain-row{display:flex;align-items:flex-start;gap:0;margin-bottom:16px;position:relative}
-.chain-label{writing-mode:vertical-lr;font-size:10px;color:#8b949e;padding:8px 4px;flex-shrink:0;text-align:center}
-.chain-nodes{display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap}
-.bead-link{color:#58a6ff;font-size:20px;font-weight:bold;align-self:center;flex-shrink:0}
+.session-swimlane{margin-bottom:20px;background:#111820;border:1px solid #1e2a3a;border-radius:10px;overflow:hidden}
+.session-bar{display:flex;align-items:center;gap:8px;padding:8px 16px;background:#161e2a;border-bottom:1px solid #1e2a3a}
+.session-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+.session-name{font-size:12px;font-weight:600;color:#c9d1d9}
+.session-meta{font-size:10px;color:#8b949e;margin-left:auto}
+.chain-row{display:flex;align-items:flex-start;gap:0;margin:8px 0;padding-left:8px;position:relative}
+.chain-label{writing-mode:vertical-lr;font-size:9px;color:#484f58;padding:4px 2px;flex-shrink:0;text-align:center}
+.chain-nodes{display:flex;align-items:flex-start;gap:4px;flex-wrap:wrap}
+.bead-link{color:#30363d;font-size:14px;font-weight:bold;align-self:center;flex-shrink:0;margin:0 2px}
 
-/* 珠链式节点 — 保证始终正圆 */
+/* 珠链式节点 */
 .bead{flex-shrink:0;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;cursor:pointer;position:relative;transition:all .25s cubic-bezier(.4,0,.2,1);font-weight:700;line-height:1.2;overflow:hidden}
 .bead:hover{filter:brightness(1.2);z-index:10}
 .bead .icon{font-size:12px}
@@ -53,22 +58,15 @@ body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color
 .note-preview{font-size:7px;color:#6e7681;max-width:90%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px}
 .cursor-dot{position:absolute;top:-3px;right:-3px;width:10px;height:10px;border-radius:50%;background:#fac858;z-index:2;border:1px solid #0d1117}
 
-/* 链节连接线 */
-.bead-link{width:20px;height:2px;background:#30363d;flex-shrink:0;border-radius:1px;align-self:center}
-
-/* 分支区 */
 .branch-area{margin-left:28px;padding:6px 0 6px 14px;border-left:1.5px solid #58a6ff33;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 
-/* 底部 */
 .bottombar{min-height:32px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:#161b22;border-top:1px solid #30363d;flex-shrink:0;font-size:10px;color:#8b949e}
 
-/* 右键菜单 */
 .ctx-menu{position:fixed;background:#1c2128;border:1px solid #30363d;border-radius:8px;padding:4px 0;z-index:1000;min-width:180px;box-shadow:0 8px 24px rgba(0,0,0,.5)}
 .ctx-item{padding:6px 14px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px}
 .ctx-item:hover{background:#30363d}
 .ctx-divider{height:1px;background:#30363d;margin:4px 0}
 
-/* Modal */
 .modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.6);z-index:2000;display:flex;align-items:center;justify-content:center}
 .modal-box{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:24px;max-width:600px;max-height:80vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.6);min-width:360px}
 .modal-box h3{margin-bottom:12px;font-size:16px}
@@ -79,7 +77,6 @@ body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color
 .report-body{background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:16px;font-size:13px;line-height:1.6;white-space:pre-wrap;max-height:400px;overflow-y:auto}
 .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
 
-/* 审计弹窗 */
 .audit-modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#161b22;border:2px solid #f85149;border-radius:12px;padding:20px 28px;z-index:3000;box-shadow:0 12px 40px rgba(248,81,73,.3);min-width:360px}
 .audit-modal h4{color:#f85149;margin-bottom:8px;font-size:14px}
 .audit-desc{margin-bottom:8px;font-size:12px;color:#8b949e}
@@ -87,7 +84,6 @@ body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color
 .audit-countdown{font-size:10px;color:#8b949e;text-align:center;margin-top:6px}
 .empty-state{color:#8b949e;text-align:center;padding:60px;font-size:14px}
 
-/* 倒计时弹窗 */
 .countdown-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.65);z-index:3000;display:flex;align-items:center;justify-content:center}
 .cd-box{background:#161b22;border:2px solid #fac858;border-radius:16px;padding:28px 32px;text-align:center;box-shadow:0 12px 40px rgba(250,200,88,.2);min-width:300px}
 .cd-icon{font-size:32px;margin-bottom:8px}
@@ -101,7 +97,7 @@ body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color
 <body>
 <div id="app">
   <div class="topbar">
-    <span class="topbar-title">🧠 Brain Map v2</span>
+    <span class="topbar-title">🧠 Brain Map v2.1</span>
     <div class="topbar-right">
       <label class="audit-toggle" title="审计开关">
         <input type="checkbox" v-model="auditEnabled" @change="toggleAudit">
@@ -117,56 +113,64 @@ body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color
 
   <div class="chain-view" @click="closeCtxMenu" @wheel.prevent="onZoom" @mousedown="onPanStart" @mousemove="onPanMove" @mouseup="onPanEnd" @mouseleave="onPanEnd">
     <div :style="{transform:'scale('+zoom+') translate('+panX+'px,'+panY+'px)',transformOrigin:'0 0'}">
-    <!-- 主链 -->
-    <div class="chain-row">
-      <div class="chain-label">主链</div>
-      <div class="chain-nodes">
-        <template v-for="(cid, idx) in state.chain" :key="cid">
-          <div class="bead-link" v-if="idx>0 && idx%2===0">↓</div>
-          <div class="bead-link" v-if="idx>0 && idx%2===1">→</div>
-          <div :class="beadClass(cid)" @click="openReport(cid)" @contextmenu.prevent="showCtxMenu($event, cid)">
-            <span class="icon">{{ statusIcon(cid) }}</span>
-            <span class="name">{{ nodeName(cid) }}</span>
-            <span class="note-preview" v-if="getNode(cid).notes">{{ getNode(cid).notes.substring(0,12) }}…</span>
-            <span class="cursor-dot" v-if="state.meta.cursor === cid"></span>
-          </div>
-        </template>
-      </div>
-    </div>
 
-    <!-- 泳道：每条计划链分支 -->
-    <div class="chain-row" v-for="(rid, pi) in state.planRoots" :key="'p'+pi">
-      <div class="chain-label">{{ getNode(rid).name }}</div>
-      <div>
+    <!-- 多 session 泳道 -->
+    <div v-for="(sess, si) in sessions" :key="sess.sessionId" class="session-swimlane">
+      <div class="session-bar">
+        <span class="session-dot" :style="{background: sessionColor(si)}"></span>
+        <span class="session-name">{{ sessionLabel(sess) }}</span>
+        <span class="session-meta">节点:{{ sess.nodes.length }} | 链长:{{ sess.chain.length }}</span>
+      </div>
+
+      <!-- 主链 -->
+      <div class="chain-row" v-if="sess.chain.length > 0">
+        <div class="chain-label">主链</div>
         <div class="chain-nodes">
-          <div :class="beadClass(rid)" @click="openReport(rid)" @contextmenu.prevent="showCtxMenu($event, rid)">
-            <span class="icon">{{ statusIcon(rid) }}</span>
-            <span class="name">{{ getNode(rid).name }}</span>
-            <span class="cursor-dot" v-if="state.meta.cursor === rid"></span>
-          </div>
-        </div>
-        <!-- 该计划根下的分支子节点树 -->
-        <div class="branch-area" v-if="shouldExpandPlan(rid)">
-          <template v-for="cid in getPlanSubtree(rid)" :key="cid">
-            <div :class="beadClass(cid)" @click="openReport(cid)" @contextmenu.prevent="showCtxMenu($event, cid)">
-              <span class="icon">{{ statusIcon(cid) }}</span>
-              <span class="name">{{ nodeName(cid) }}</span>
-              <span class="note-preview" v-if="getNode(cid).notes">{{ getNode(cid).notes.substring(0,10) }}…</span>
-              <span class="cursor-dot" v-if="state.meta.cursor === cid"></span>
+          <template v-for="(cid, idx) in sess.chain" :key="cid">
+            <div class="bead-link" v-if="idx>0">→</div>
+            <div :class="beadClass(cid, sess)" @click="openReport(cid, sess)" @contextmenu.prevent="showCtxMenu($event, cid, sess)">
+              <span class="icon">{{ statusIcon(cid, sess) }}</span>
+              <span class="name">{{ nodeName(cid, sess) }}</span>
+              <span class="note-preview" v-if="getNode(cid, sess).notes">{{ getNode(cid, sess).notes.substring(0,12) }}…</span>
+              <span class="cursor-dot" v-if="sess.meta.cursor === cid"></span>
             </div>
-            <div class="bead-link">→</div>
           </template>
         </div>
       </div>
+
+      <!-- 计划链泳道 -->
+      <div class="chain-row" v-for="rid in (sess.planRoots || [])" :key="'p'+rid">
+        <div class="chain-label">{{ getNode(rid, sess).name || '计划' }}</div>
+        <div>
+          <div class="chain-nodes">
+            <div :class="beadClass(rid, sess)" @click="openReport(rid, sess)" @contextmenu.prevent="showCtxMenu($event, rid, sess)">
+              <span class="icon">{{ statusIcon(rid, sess) }}</span>
+              <span class="name">{{ nodeName(rid, sess) }}</span>
+              <span class="cursor-dot" v-if="sess.meta.cursor === rid"></span>
+            </div>
+          </div>
+          <div class="branch-area" v-if="shouldExpandPlan(rid, sess)">
+            <template v-for="cid in getPlanSubtree(rid, sess)" :key="cid">
+              <div :class="beadClass(cid, sess)" @click="openReport(cid, sess)" @contextmenu.prevent="showCtxMenu($event, cid, sess)">
+                <span class="icon">{{ statusIcon(cid, sess) }}</span>
+                <span class="name">{{ nodeName(cid, sess) }}</span>
+                <span class="note-preview" v-if="getNode(cid, sess).notes">{{ getNode(cid, sess).notes.substring(0,10) }}…</span>
+                <span class="cursor-dot" v-if="sess.meta.cursor === cid"></span>
+              </div>
+              <div class="bead-link">→</div>
+            </template>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <div v-if="state.nodes.length === 0" class="empty-state">🧠 等待 Claude Code 会话开始...</div>
+    <div v-if="sessions.length === 0" class="empty-state">🧠 等待 Claude Code 会话开始...</div>
     </div>
   </div>
 
   <div class="bottombar">
     <span>{{ lastEvent }}</span>
-    <span>节点:{{ state.nodes.length }} | 链长:{{ state.chain.length }} | 计划:{{ state.planRoots.length }} | 游标:{{ cursorName }}</span>
+    <span>节点:{{ totalNodes }} | 会话:{{ sessions.length }} | {{ cursorName }}</span>
   </div>
 
   <!-- 右键菜单 -->
@@ -199,7 +203,7 @@ body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color
   <!-- 报告弹窗 -->
   <div v-show="modals.report" class="modal-overlay" @click.self="modals.report=false">
     <div class="modal-box">
-      <h3>{{ getNode(ctxMenu.nodeId).name }} — 报告</h3>
+      <h3>{{ getNode(ctxMenu.nodeId, ctxSession).name }} — 报告</h3>
       <div class="report-body">{{ reportText }}</div>
       <div class="btns"><button class="btn" @click="modals.report=false">关闭</button></div>
     </div>
@@ -235,11 +239,13 @@ body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color
 
 <script src="https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.prod.js"></script>
 <script>
-const { createApp, ref, computed, onMounted, onUnmounted, nextTick } = Vue
+const { createApp, ref, computed, onMounted, onUnmounted } = Vue
+
+const SESSION_COLORS = ['#5470c6','#91cc75','#fac858','#ee6666','#73c0de','#fc8452','#9a60b4','#ea7ccc']
 
 createApp({
   setup() {
-    const state = ref({ nodes:[], links:[], chain:[], planRoots:[], taskLines:{}, meta:{cursor:null,currentPlanIndex:0} })
+    const state = ref({ sessions: [], multiSession: false })
     const online = ref(false)
     const lastEvent = ref('等待连接...')
     const zoom = ref(1); const panX = ref(0); const panY = ref(0)
@@ -247,6 +253,7 @@ createApp({
     const countdown = ref({show:false,remaining:0,total:0,nextName:''})
     const auditEnabled = ref(false)
     const ctxMenu = ref({show:false,nodeId:'',x:0,y:0})
+    const ctxSession = ref(null)
     const editNode = ref({})
     const modals = ref({notes:false,report:false,audit:false})
     const auditCmd = ref('')
@@ -254,23 +261,48 @@ createApp({
     const auditRequestId = ref('')
     let auditTimer = null, es = null
 
-    function getNode(id) { return state.value.nodes.find(n => n.id === id) || {} }
-
-    const cursorName = computed(() => {
-      const n = state.value.nodes.find(n => n.id === state.value.meta.cursor)
-      return n ? n.name : '—'
+    // 向下兼容：支持新旧两种数据格式
+    const sessions = computed(() => {
+      if (state.value.multiSession) return state.value.sessions || []
+      // 旧格式兜底
+      return [{
+        sessionId: 'default',
+        nodes: state.value.nodes || [],
+        links: state.value.links || [],
+        chain: state.value.chain || [],
+        planRoots: state.value.planRoots || [],
+        taskLines: state.value.taskLines || {},
+        meta: state.value.meta || {}
+      }]
     })
 
-    function nodeName(id) {
-      const n = getNode(id)
+    const totalNodes = computed(() => {
+      let n = 0
+      sessions.value.forEach(s => n += s.nodes.length)
+      return n
+    })
+
+    function sessionColor(idx) { return SESSION_COLORS[idx % SESSION_COLORS.length] }
+    function sessionLabel(sess) {
+      const name = (sess.meta?.activeTaskLine || sess.sessionId || '?')
+      const short = sess.sessionId.substring(0, 8)
+      return name.length > 20 ? name.substring(0,18)+'…' : (name + ' (' + short + ')')
+    }
+
+    function getNode(id, sess) {
+      if (!sess) return {}
+      return sess.nodes.find(n => n.id === id) || {}
+    }
+    function nodeName(id, sess) {
+      const n = getNode(id, sess)
       return n.name ? (n.name.length > 10 ? n.name.substring(0,9)+'…' : n.name) : '?'
     }
-    function statusIcon(id) {
-      const n = getNode(id)
+    function statusIcon(id, sess) {
+      const n = getNode(id, sess)
       return n.status === 'done' ? '✓' : n.status === 'failed' ? '✗' : n.status === 'active' ? '▶' : n.status === 'shelved' ? '⊘' : '⏳'
     }
-    function beadClass(id) {
-      const n = getNode(id)
+    function beadClass(id, sess) {
+      const n = getNode(id, sess)
       return 'bead ' + (
         n.type === 'root' ? 'root' :
         n.planMode && n.status === 'failed' ? 'plan-failed' :
@@ -284,21 +316,20 @@ createApp({
         n.type === 'action' ? 'branch' : 'action-active'
       )
     }
-    function shouldExpandPlan(rid) {
-      const n = getNode(rid)
+    function shouldExpandPlan(rid, sess) {
+      const n = getNode(rid, sess)
       return n.status === 'active' || n.status === 'done' || n.status === 'failed'
     }
-    function getPlanSubtree(rid) {
-      // 收集非链上的子节点
+    function getPlanSubtree(rid, sess) {
       const result = []
-      const chainSet = new Set(state.value.chain)
+      const chainSet = new Set(sess.chain || [])
       function walk(nodeId) {
-        const node = getNode(nodeId)
+        const node = getNode(nodeId, sess)
         if (!node || !node.children) return
         node.children.forEach(cid => {
           if (!result.includes(cid)) {
             if (!chainSet.has(cid)) result.push(cid)
-            walk(cid)  // always descend for grandchildren
+            walk(cid)
           }
         })
       }
@@ -306,8 +337,16 @@ createApp({
       return result
     }
 
+    const cursorName = computed(() => {
+      for (const s of sessions.value) {
+        const n = s.nodes.find(n => n.id === s.meta.cursor)
+        if (n) return n.name
+      }
+      return '—'
+    })
+
     const reportText = computed(() => {
-      const n = getNode(ctxMenu.value.nodeId)
+      const n = getNode(ctxMenu.value.nodeId, ctxSession.value)
       if (!n.name) return '(未选择节点)'
       let t = ''
       t += '状态: ' + (n.status||'?') + ' | 类型: ' + (n.planMode?'计划':'执行')
@@ -330,26 +369,31 @@ createApp({
     })
 
     // 右键菜单
-    function showCtxMenu(e, nodeId) { ctxMenu.value = {show:true,nodeId,x:e.clientX,y:e.clientY} }
+    function showCtxMenu(e, nodeId, sess) { ctxMenu.value = {show:true,nodeId,x:e.clientX,y:e.clientY}; ctxSession.value = sess }
     function closeCtxMenu() { ctxMenu.value.show = false }
-    function ctxEdit() { const n=getNode(ctxMenu.value.nodeId); editNode.value={...n}; modals.value.notes=true; closeCtxMenu() }
+    function ctxEdit() { const n=getNode(ctxMenu.value.nodeId, ctxSession.value); editNode.value={...n}; modals.value.notes=true; closeCtxMenu() }
     function ctxReport() { modals.value.report=true; closeCtxMenu() }
-    function ctxMark(s) { graphCall('mark-'+s,{nodeId:ctxMenu.value.nodeId,reason:s==='failed'?prompt('失败原因：'):''}); closeCtxMenu() }
-    function ctxTogglePin() { const n=getNode(ctxMenu.value.nodeId); graphCall('update-node',{nodeId:n.id,pinned:!n.pinned}); closeCtxMenu() }
-    function ctxSaveNode() { fetch('/archive',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nodeId:ctxMenu.value.nodeId})}); closeCtxMenu() }
-    function ctxDelete() { if(confirm('删除?'))graphCall('delete-node',{nodeId:ctxMenu.value.nodeId}); closeCtxMenu() }
-    function openReport(id) { ctxMenu.value.nodeId=id; modals.value.report=true }
+    function ctxMark(s) {
+      graphCall('mark-'+s, { nodeId: ctxMenu.value.nodeId, reason: s==='failed'?prompt('失败原因：'):'' }, ctxSession.value)
+      closeCtxMenu()
+    }
+    function ctxTogglePin() { const n=getNode(ctxMenu.value.nodeId, ctxSession.value); graphCall('update-node',{nodeId:n.id,pinned:!n.pinned},ctxSession.value); closeCtxMenu() }
+    function ctxSaveNode() { fetch('/archive',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nodeId:ctxMenu.value.nodeId,sessionId:ctxSession.value?.sessionId})}); closeCtxMenu() }
+    function ctxDelete() { if(confirm('删除?'))graphCall('delete-node',{nodeId:ctxMenu.value.nodeId},ctxSession.value); closeCtxMenu() }
+    function openReport(id, sess) { ctxMenu.value.nodeId=id; ctxSession.value=sess; modals.value.report=true }
 
     async function saveEdit() {
-      await graphCall('update-node',{
+      await graphCall('update-node', {
         nodeId:editNode.value.id,name:editNode.value.name,
         notes:editNode.value.notes,successCriteria:editNode.value.successCriteria
-      })
+      }, ctxSession.value)
       modals.value.notes = false
     }
 
-    async function graphCall(op, data) {
-      const r = await fetch('/graph',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op,...data})})
+    async function graphCall(op, data, sess) {
+      const body = { op, ...data }
+      if (sess) body.sessionId = sess.sessionId
+      const r = await fetch('/graph',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
       return r.json()
     }
 
@@ -362,7 +406,7 @@ createApp({
       modals.value.audit=false
       fetch('/audit-response',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({requestId:auditRequestId.value,approved})})
     }
-        async function stopCountdown() { fetch('/graph',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'stop-countdown'})}); countdown.value={show:false,remaining:0,total:0,nextName:''} }
+    async function stopCountdown() { fetch('/graph',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'stop-countdown'})}); countdown.value={show:false,remaining:0,total:0,nextName:''} }
     async function advanceNow() { fetch('/graph',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'advance-plan'})}); countdown.value={show:false,remaining:0,total:0,nextName:''} }
     async function archiveAll() {
       const r = await fetch('/archive',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})})
@@ -379,7 +423,7 @@ createApp({
       es = new EventSource('/sse')
       es.addEventListener('graph-update', e => {
         state.value = JSON.parse(e.data)
-        auditEnabled.value = state.value.meta?.auditEnabled === true
+        auditEnabled.value = sessions.value[0]?.meta?.auditEnabled === true
       })
       es.addEventListener('event', e => {
         const evt = JSON.parse(e.data)
@@ -408,7 +452,8 @@ createApp({
 
     onMounted(() => {
       fetch('/state').then(r=>r.json()).then(s => {
-        state.value = s; auditEnabled.value = s.meta?.auditEnabled === true
+        state.value = s
+        if (s.multiSession) auditEnabled.value = s.sessions?.[0]?.meta?.auditEnabled === true
       })
       connectSSE()
     })
@@ -422,8 +467,8 @@ createApp({
     function onKeyUp(e) { if(e.code==='Space'){spaceDown=false;panning=false} }
     document.addEventListener('keydown',onKeyDown); document.addEventListener('keyup',onKeyUp)
 
-    return { state, online, lastEvent, auditEnabled, ctxMenu, editNode, modals, auditCmd, auditCountdown, cursorName,
-      zoom, panX, panY, onZoom, onPanStart, onPanMove, onPanEnd, countdown,
+    return { state, sessions, online, lastEvent, auditEnabled, ctxMenu, ctxSession, editNode, modals, auditCmd, auditCountdown, cursorName, totalNodes,
+      zoom, panX, panY, onZoom, onPanStart, onPanMove, onPanEnd, countdown, sessionColor, sessionLabel,
       getNode, nodeName, statusIcon, beadClass, shouldExpandPlan, getPlanSubtree, reportText,
       showCtxMenu, closeCtxMenu, ctxEdit, ctxReport, ctxMark, ctxTogglePin, ctxSaveNode, ctxDelete, openReport,
       saveEdit, toggleAudit, auditAnswer, stopCountdown, advanceNow, archiveAll, resetAll }
