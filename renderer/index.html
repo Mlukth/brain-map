@@ -24,19 +24,17 @@ body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color
 .btn:hover{background:#30363d;border-color:#58a6ff}
 .btn.danger{color:#f85149}.btn.danger:hover{background:#3d1f1f}
 
-/* 泳道 */
-.chain-view{flex:1;overflow:auto;padding:20px}
 .session-swimlane{margin-bottom:20px;background:#111820;border:1px solid #1e2a3a;border-radius:10px;overflow:hidden}
 .session-bar{display:flex;align-items:center;gap:8px;padding:8px 16px;background:#161e2a;border-bottom:1px solid #1e2a3a}
 .session-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
 .session-name{font-size:12px;font-weight:600;color:#c9d1d9}
 .session-meta{font-size:10px;color:#8b949e;margin-left:auto}
+.chain-view{flex:1;overflow:auto;padding:20px}
 .chain-row{display:flex;align-items:flex-start;gap:0;margin:8px 0;padding-left:8px;position:relative}
 .chain-label{writing-mode:vertical-lr;font-size:9px;color:#484f58;padding:4px 2px;flex-shrink:0;text-align:center}
 .chain-nodes{display:flex;align-items:flex-start;gap:4px;flex-wrap:wrap}
 .bead-link{color:#30363d;font-size:14px;font-weight:bold;align-self:center;flex-shrink:0;margin:0 2px}
 
-/* 珠链式节点 */
 .bead{flex-shrink:0;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;cursor:pointer;position:relative;transition:all .25s cubic-bezier(.4,0,.2,1);font-weight:700;line-height:1.2;overflow:hidden}
 .bead:hover{filter:brightness(1.2);z-index:10}
 .bead .icon{font-size:12px}
@@ -57,9 +55,7 @@ body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color
 
 .note-preview{font-size:7px;color:#6e7681;max-width:90%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px}
 .cursor-dot{position:absolute;top:-3px;right:-3px;width:10px;height:10px;border-radius:50%;background:#fac858;z-index:2;border:1px solid #0d1117}
-
 .branch-area{margin-left:28px;padding:6px 0 6px 14px;border-left:1.5px solid #58a6ff33;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-
 .bottombar{min-height:32px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:#161b22;border-top:1px solid #30363d;flex-shrink:0;font-size:10px;color:#8b949e}
 
 .ctx-menu{position:fixed;background:#1c2128;border:1px solid #30363d;border-radius:8px;padding:4px 0;z-index:1000;min-width:180px;box-shadow:0 8px 24px rgba(0,0,0,.5)}
@@ -114,15 +110,14 @@ body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color
   <div class="chain-view" @click="closeCtxMenu" @wheel.prevent="onZoom" @mousedown="onPanStart" @mousemove="onPanMove" @mouseup="onPanEnd" @mouseleave="onPanEnd">
     <div :style="{transform:'scale('+zoom+') translate('+panX+'px,'+panY+'px)',transformOrigin:'0 0'}">
 
-    <!-- 多 session 泳道 -->
     <div v-for="(sess, si) in sessions" :key="sess.sessionId" class="session-swimlane">
       <div class="session-bar">
         <span class="session-dot" :style="{background: sessionColor(si)}"></span>
         <span class="session-name">{{ sessionLabel(sess) }}</span>
-        <span class="session-meta">节点:{{ sess.nodes.length }} | 链长:{{ sess.chain.length }}</span>
+        <span class="session-meta">节点:{{ sess.nodes.length }} | 链长:{{ sess.chain.length }} | 计划:{{ (sess.planRoots||[]).length }}</span>
       </div>
 
-      <!-- 主链 -->
+      <!-- 主链（chain 不为空时） -->
       <div class="chain-row" v-if="sess.chain.length > 0">
         <div class="chain-label">主链</div>
         <div class="chain-nodes">
@@ -138,8 +133,8 @@ body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color
         </div>
       </div>
 
-      <!-- Fallback: chain 为空时平铺所有非 action 节点 -->
-      <div class="chain-row" v-if="sess.chain.length === 0 && sess.nodes.length > 0">
+      <!-- Fallback: chain 为空但 nodes 有数据 → 平铺所有 goal/root -->
+      <div class="chain-row" v-if="sess.chain.length === 0 && topNodes(sess).length > 0">
         <div class="chain-label">全部</div>
         <div class="chain-nodes">
           <template v-for="(n, idx) in topNodes(sess)" :key="n.id">
@@ -201,21 +196,16 @@ body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color
     <div class="ctx-item" style="color:#f85149" @click="ctxDelete">🗑️ 删除节点</div>
   </div>
 
-  <!-- 备注编辑弹窗 -->
+  <!-- Modals (same as before) -->
   <div v-show="modals.notes" class="modal-overlay" @click.self="modals.notes=false">
     <div class="modal-box">
       <h3>编辑: {{ editNode.name }}</h3>
       <div class="field"><label>节点名</label><input v-model="editNode.name"></div>
       <div class="field"><label>备注</label><textarea v-model="editNode.notes" placeholder="备注内容..."></textarea></div>
       <div class="field"><label>成功标准</label><input v-model="editNode.successCriteria" placeholder="例如: endpoint返回200"></div>
-      <div class="btns">
-        <button class="btn" @click="modals.notes=false">取消</button>
-        <button class="btn" style="background:#238636" @click="saveEdit">保存</button>
-      </div>
+      <div class="btns"><button class="btn" @click="modals.notes=false">取消</button><button class="btn" style="background:#238636" @click="saveEdit">保存</button></div>
     </div>
   </div>
-
-  <!-- 报告弹窗 -->
   <div v-show="modals.report" class="modal-overlay" @click.self="modals.report=false">
     <div class="modal-box">
       <h3>{{ getNode(ctxMenu.nodeId, ctxSession).name }} — 报告</h3>
@@ -223,20 +213,13 @@ body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color
       <div class="btns"><button class="btn" @click="modals.report=false">关闭</button></div>
     </div>
   </div>
-
-  <!-- 审计确认弹窗 -->
   <div v-show="modals.audit" class="audit-modal">
     <h4>⚠️ 脑图审计确认</h4>
     <div class="audit-desc">Claude 请求修改脑图结构：</div>
     <div class="audit-cmd">{{ auditCmd }}</div>
-    <div class="btns">
-      <button class="btn danger" @click="auditAnswer(false)">❌ 拒绝</button>
-      <button class="btn" style="background:#238636" @click="auditAnswer(true)">✅ 允许</button>
-    </div>
+    <div class="btns"><button class="btn danger" @click="auditAnswer(false)">❌ 拒绝</button><button class="btn" style="background:#238636" @click="auditAnswer(true)">✅ 允许</button></div>
     <div class="audit-countdown">{{ auditCountdown }}s 后自动拒绝</div>
   </div>
-
-  <!-- 倒计时弹窗 -->
   <div v-show="countdown.show" class="countdown-overlay">
     <div class="cd-box">
       <div class="cd-icon">🔄</div>
@@ -244,10 +227,7 @@ body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color
       <div class="cd-next">下一条「{{ countdown.nextName }}」</div>
       <div class="cd-timer">{{ countdown.remaining }}s 后自动开始</div>
       <div class="cd-bar-bg"><div class="cd-bar-fill" :style="{width:(countdown.remaining/countdown.total*100)+'%'}"></div></div>
-      <div class="btns">
-        <button class="btn danger" @click="stopCountdown">⏸ 暂停</button>
-        <button class="btn" style="background:#238636" @click="advanceNow">▶ 立即开始</button>
-      </div>
+      <div class="btns"><button class="btn danger" @click="stopCountdown">⏸ 暂停</button><button class="btn" style="background:#238636" @click="advanceNow">▶ 立即开始</button></div>
     </div>
   </div>
 </div>
@@ -255,7 +235,6 @@ body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color
 <script src="https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.prod.js"></script>
 <script>
 const { createApp, ref, computed, onMounted, onUnmounted } = Vue
-
 const SESSION_COLORS = ['#5470c6','#91cc75','#fac858','#ee6666','#73c0de','#fc8452','#9a60b4','#ea7ccc']
 
 createApp({
@@ -276,10 +255,9 @@ createApp({
     const auditRequestId = ref('')
     let auditTimer = null, es = null
 
-    // 向下兼容：支持新旧两种数据格式
+    // 向下兼容新旧格式
     const sessions = computed(() => {
       if (state.value.multiSession) return state.value.sessions || []
-      // 旧格式兜底
       return [{
         sessionId: 'default',
         nodes: state.value.nodes || [],
@@ -291,73 +269,65 @@ createApp({
       }]
     })
 
-    const totalNodes = computed(() => {
-      let n = 0
-      sessions.value.forEach(s => n += s.nodes.length)
-      return n
-    })
+    const totalNodes = computed(() => { let n=0; sessions.value.forEach(s=>n+=s.nodes.length); return n })
 
     function sessionColor(idx) { return SESSION_COLORS[idx % SESSION_COLORS.length] }
     function sessionLabel(sess) {
-      const name = (sess.meta?.activeTaskLine || sess.sessionId || '?')
-      const short = sess.sessionId.substring(0, 8)
-      return name.length > 20 ? name.substring(0,18)+'…' : (name + ' (' + short + ')')
+      const tlName = sess.meta?.activeTaskLine || ''
+      const short = (sess.sessionId || '?').substring(0, 8)
+      return tlName || ('会话 ' + short)
     }
 
+    // 节点查询（在指定 session 内查找）
     function getNode(id, sess) {
-      if (!sess) return {}
+      if (!sess || !sess.nodes) return {}
       return sess.nodes.find(n => n.id === id) || {}
     }
     function nodeName(id, sess) {
       const n = getNode(id, sess)
-      return n.name ? (n.name.length > 10 ? n.name.substring(0,9)+'…' : n.name) : '?'
+      const nm = n.name || '?'
+      return nm.length > 10 ? nm.substring(0,9)+'…' : nm
     }
     function statusIcon(id, sess) {
       const n = getNode(id, sess)
-      return n.status === 'done' ? '✓' : n.status === 'failed' ? '✗' : n.status === 'active' ? '▶' : n.status === 'shelved' ? '⊘' : '⏳'
+      return n.status==='done'?'✓':n.status==='failed'?'✗':n.status==='active'?'▶':n.status==='shelved'?'⊘':'⏳'
     }
     function beadClass(id, sess) {
       const n = getNode(id, sess)
       return 'bead ' + (
-        n.type === 'root' ? 'root' :
-        n.planMode && n.status === 'failed' ? 'plan-failed' :
-        n.planMode && n.status === 'active' ? 'plan-active' :
-        n.planMode && n.status === 'done' ? 'plan-done' :
-        n.planMode ? 'plan-pending' :
-        n.status === 'failed' ? 'action-failed' :
-        n.status === 'active' ? 'action-active' :
-        n.status === 'done' ? 'action-done' :
-        n.status === 'shelved' ? 'shelved' :
-        n.type === 'action' ? 'branch' : 'action-active'
+        n.type==='root'?'root':
+        n.planMode&&n.status==='failed'?'plan-failed':
+        n.planMode&&n.status==='active'?'plan-active':
+        n.planMode&&n.status==='done'?'plan-done':
+        n.planMode?'plan-pending':
+        n.status==='failed'?'action-failed':
+        n.status==='active'?'action-active':
+        n.status==='done'?'action-done':
+        n.status==='shelved'?'shelved':
+        n.type==='action'?'branch':'action-active'
       )
     }
     function topNodes(sess) {
+      if (!sess || !sess.nodes) return []
       return sess.nodes.filter(n => n.type !== 'action').sort((a,b) => (a.createdAt||'').localeCompare(b.createdAt||''))
     }
     function shouldExpandPlan(rid, sess) {
       const n = getNode(rid, sess)
-      return n.status === 'active' || n.status === 'done' || n.status === 'failed'
+      return n.status==='active'||n.status==='done'||n.status==='failed'
     }
     function getPlanSubtree(rid, sess) {
-      const result = []
-      const chainSet = new Set(sess.chain || [])
-      function walk(nodeId) {
-        const node = getNode(nodeId, sess)
-        if (!node || !node.children) return
-        node.children.forEach(cid => {
-          if (!result.includes(cid)) {
-            if (!chainSet.has(cid)) result.push(cid)
-            walk(cid)
-          }
-        })
+      const result = []; const chainSet = new Set(sess.chain||[])
+      function walk(id) {
+        const node = getNode(id, sess)
+        if (!node||!node.children) return
+        node.children.forEach(cid => { if(!result.includes(cid)){if(!chainSet.has(cid))result.push(cid);walk(cid)} })
       }
-      walk(rid)
-      return result
+      walk(rid); return result
     }
 
     const cursorName = computed(() => {
       for (const s of sessions.value) {
-        const n = s.nodes.find(n => n.id === s.meta.cursor)
+        const n = s.nodes.find(n=>n.id===s.meta.cursor)
         if (n) return n.name
       }
       return '—'
@@ -366,130 +336,101 @@ createApp({
     const reportText = computed(() => {
       const n = getNode(ctxMenu.value.nodeId, ctxSession.value)
       if (!n.name) return '(未选择节点)'
-      let t = ''
-      t += '状态: ' + (n.status||'?') + ' | 类型: ' + (n.planMode?'计划':'执行')
+      let t = '状态: '+(n.status||'?')+' | 类型: '+(n.planMode?'计划':'执行')
       if (n.audited) t += ' | 已审计'
       t += '\n\n'
-      if (n.notes) t += '备注: ' + n.notes + '\n\n'
-      if (n.successCriteria) t += '成功标准: ' + n.successCriteria + '\n\n'
+      if (n.notes) t += '备注: '+n.notes+'\n\n'
+      if (n.successCriteria) t += '成功标准: '+n.successCriteria+'\n\n'
       if (n.result) {
-        if (n.result.outcome) t += '结果: ' + n.result.outcome + '\n'
-        if (n.result.summary) t += '摘要: ' + n.result.summary + '\n'
+        if (n.result.outcome) t += '结果: '+n.result.outcome+'\n'
+        if (n.result.summary) t += '摘要: '+n.result.summary+'\n'
         if (n.result.attempts) {
           t += '\n=== 尝试记录 ===\n'
-          n.result.attempts.forEach((a,i) => {
-            t += '方案'+(i+1)+': '+(a.approach||'?')+' → '+(a.verdict||'pending')+'\n'
-          })
+          n.result.attempts.forEach((a,i)=>t+='方案'+(i+1)+': '+(a.approach||'?')+' → '+(a.verdict||'pending')+'\n')
         }
-        if (n.result.finalReport) t += '\n=== 完整报告 ===\n' + n.result.finalReport + '\n'
+        if (n.result.finalReport) t += '\n=== 完整报告 ===\n'+n.result.finalReport+'\n'
       }
-      return t || '(暂无详情)'
+      return t||'(暂无详情)'
     })
 
     // 右键菜单
-    function showCtxMenu(e, nodeId, sess) { ctxMenu.value = {show:true,nodeId,x:e.clientX,y:e.clientY}; ctxSession.value = sess }
-    function closeCtxMenu() { ctxMenu.value.show = false }
+    function showCtxMenu(e, nodeId, sess) { ctxMenu.value={show:true,nodeId,x:e.clientX,y:e.clientY}; ctxSession.value=sess }
+    function closeCtxMenu() { ctxMenu.value.show=false }
     function ctxEdit() { const n=getNode(ctxMenu.value.nodeId, ctxSession.value); editNode.value={...n}; modals.value.notes=true; closeCtxMenu() }
     function ctxReport() { modals.value.report=true; closeCtxMenu() }
-    function ctxMark(s) {
-      graphCall('mark-'+s, { nodeId: ctxMenu.value.nodeId, reason: s==='failed'?prompt('失败原因：'):'' }, ctxSession.value)
-      closeCtxMenu()
-    }
-    function ctxTogglePin() { const n=getNode(ctxMenu.value.nodeId, ctxSession.value); graphCall('update-node',{nodeId:n.id,pinned:!n.pinned},ctxSession.value); closeCtxMenu() }
+    function ctxMark(s) { graphCall('mark-'+s,{nodeId:ctxMenu.value.nodeId,reason:s==='failed'?prompt('失败原因：'):''}, ctxSession.value); closeCtxMenu() }
+    function ctxTogglePin() { const n=getNode(ctxMenu.value.nodeId, ctxSession.value); graphCall('update-node',{nodeId:n.id,pinned:!n.pinned}, ctxSession.value); closeCtxMenu() }
     function ctxSaveNode() { fetch('/archive',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nodeId:ctxMenu.value.nodeId,sessionId:ctxSession.value?.sessionId})}); closeCtxMenu() }
-    function ctxDelete() { if(confirm('删除?'))graphCall('delete-node',{nodeId:ctxMenu.value.nodeId},ctxSession.value); closeCtxMenu() }
+    function ctxDelete() { if(confirm('删除?'))graphCall('delete-node',{nodeId:ctxMenu.value.nodeId}, ctxSession.value); closeCtxMenu() }
     function openReport(id, sess) { ctxMenu.value.nodeId=id; ctxSession.value=sess; modals.value.report=true }
 
     async function saveEdit() {
-      await graphCall('update-node', {
-        nodeId:editNode.value.id,name:editNode.value.name,
-        notes:editNode.value.notes,successCriteria:editNode.value.successCriteria
-      }, ctxSession.value)
-      modals.value.notes = false
+      await graphCall('update-node',{nodeId:editNode.value.id,name:editNode.value.name,notes:editNode.value.notes,successCriteria:editNode.value.successCriteria}, ctxSession.value)
+      modals.value.notes=false
     }
 
     async function graphCall(op, data, sess) {
-      const body = { op, ...data }
+      const body = {op,...data}
       if (sess) body.sessionId = sess.sessionId
       const r = await fetch('/graph',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
       return r.json()
     }
 
-    // 审计
-    async function toggleAudit() {
-      await fetch('/audit-toggle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:auditEnabled.value})})
-    }
-    function auditAnswer(approved) {
-      if(auditTimer){clearInterval(auditTimer);auditTimer=null}
-      modals.value.audit=false
-      fetch('/audit-response',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({requestId:auditRequestId.value,approved})})
-    }
+    // 审计 / 倒计时
+    async function toggleAudit() { await fetch('/audit-toggle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:auditEnabled.value})}) }
+    function auditAnswer(approved) { if(auditTimer){clearInterval(auditTimer);auditTimer=null}; modals.value.audit=false; fetch('/audit-response',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({requestId:auditRequestId.value,approved})}) }
     async function stopCountdown() { fetch('/graph',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'stop-countdown'})}); countdown.value={show:false,remaining:0,total:0,nextName:''} }
     async function advanceNow() { fetch('/graph',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'advance-plan'})}); countdown.value={show:false,remaining:0,total:0,nextName:''} }
-    async function archiveAll() {
-      const r = await fetch('/archive',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})})
-      const j = await r.json()
-      alert('已归档 '+(j.count||0)+' 个节点')
-    }
-    async function resetAll() {
-      if(!confirm('确定清空所有节点？')) return
-      await fetch('/reset',{method:'POST'})
-    }
+    async function archiveAll() { const r=await fetch('/archive',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})}); const j=await r.json(); alert('已归档 '+(j.count||0)+' 个节点') }
+    async function resetAll() { if(!confirm('确定清空所有节点？'))return; await fetch('/reset',{method:'POST'}) }
 
     // SSE
     function connectSSE() {
       es = new EventSource('/sse')
       es.addEventListener('graph-update', e => {
         state.value = JSON.parse(e.data)
-        auditEnabled.value = sessions.value[0]?.meta?.auditEnabled === true
+        if (state.value.multiSession) auditEnabled.value = state.value.sessions?.[0]?.meta?.auditEnabled === true
+        else auditEnabled.value = state.value.meta?.auditEnabled === true
       })
       es.addEventListener('event', e => {
         const evt = JSON.parse(e.data)
-        if (evt.type === 'audit_check') {
-          auditRequestId.value = evt.requestId || ''
-          auditCmd.value = evt.command || evt.action || '?'
-          auditCountdown.value = Math.floor((evt.timeout||30000)/1000)
-          modals.value.audit = true
+        if (evt.type==='audit_check') {
+          auditRequestId.value=evt.requestId||''; auditCmd.value=evt.command||evt.action||'?'; auditCountdown.value=Math.floor((evt.timeout||30000)/1000); modals.value.audit=true
           if(auditTimer)clearInterval(auditTimer)
-          auditTimer = setInterval(() => {
-            auditCountdown.value--
-            if(auditCountdown.value <= 0){ auditAnswer(false) }
-          },1000)
-        } else if (evt.type === 'countdown_start' || evt.type === 'countdown_tick') {
-          countdown.value = {show:true, remaining:evt.remaining, total:evt.total, nextName:evt.nextName}
-        } else if (evt.type === 'countdown_done' || evt.type === 'countdown_cancelled') {
-          countdown.value = {show:false, remaining:0, total:0, nextName:''}
-        } else {
-          lastEvent.value = '['+new Date().toLocaleTimeString()+'] '+evt.type
-          online.value = true
-        }
+          auditTimer = setInterval(()=>{auditCountdown.value--;if(auditCountdown.value<=0)auditAnswer(false)},1000)
+        } else if (evt.type==='countdown_start'||evt.type==='countdown_tick') {
+          countdown.value={show:true,remaining:evt.remaining,total:evt.total,nextName:evt.nextName}
+        } else if (evt.type==='countdown_done'||evt.type==='countdown_cancelled') {
+          countdown.value={show:false,remaining:0,total:0,nextName:''}
+        } else { lastEvent.value='['+new Date().toLocaleTimeString()+'] '+evt.type; online.value=true }
       })
-      es.onopen = () => { online.value = true }
-      es.onerror = () => { online.value = false; es.close(); setTimeout(connectSSE,3000) }
+      es.onopen = () => { online.value=true }
+      es.onerror = () => { online.value=false; es.close(); setTimeout(connectSSE,3000) }
     }
 
     onMounted(() => {
       fetch('/state').then(r=>r.json()).then(s => {
         state.value = s
-        if (s.multiSession) auditEnabled.value = s.sessions?.[0]?.meta?.auditEnabled === true
-      })
+        if (s.multiSession) auditEnabled.value = s.sessions?.[0]?.meta?.auditEnabled===true
+        else auditEnabled.value = s.meta?.auditEnabled===true
+      }).catch(()=>{})
       connectSSE()
     })
-    onUnmounted(() => { if(es) es.close(); if(auditTimer) clearInterval(auditTimer) })
+    onUnmounted(() => { if(es)es.close(); if(auditTimer)clearInterval(auditTimer) })
 
-    function onZoom(e) { zoom.value = Math.max(.3, Math.min(3, zoom.value - e.deltaY*.001)) }
-    function onPanStart(e) { if(spaceDown){panning=true;panStartX=e.clientX-panX.value;panStartY=e.clientY-panY.value;e.preventDefault()}}
-    function onPanMove(e) { if(panning){panX.value=e.clientX-panStartX;panY.value=e.clientY-panStartY}}
+    function onZoom(e) { zoom.value=Math.max(.3,Math.min(3,zoom.value-e.deltaY*.001)) }
+    function onPanStart(e) { if(spaceDown){panning=true;panStartX=e.clientX-panX.value;panStartY=e.clientY-panY.value;e.preventDefault()} }
+    function onPanMove(e) { if(panning){panX.value=e.clientX-panStartX;panY.value=e.clientY-panStartY} }
     function onPanEnd() { panning=false }
     function onKeyDown(e) { if(e.code==='Space'){spaceDown=true;e.preventDefault()} }
     function onKeyUp(e) { if(e.code==='Space'){spaceDown=false;panning=false} }
     document.addEventListener('keydown',onKeyDown); document.addEventListener('keyup',onKeyUp)
 
-    return { state, sessions, online, lastEvent, auditEnabled, ctxMenu, ctxSession, editNode, modals, auditCmd, auditCountdown, cursorName, totalNodes,
-      zoom, panX, panY, onZoom, onPanStart, onPanMove, onPanEnd, countdown, sessionColor, sessionLabel,
-      getNode, nodeName, statusIcon, beadClass, shouldExpandPlan, getPlanSubtree, topNodes, reportText,
-      showCtxMenu, closeCtxMenu, ctxEdit, ctxReport, ctxMark, ctxTogglePin, ctxSaveNode, ctxDelete, openReport,
-      saveEdit, toggleAudit, auditAnswer, stopCountdown, advanceNow, archiveAll, resetAll }
+    return { state,sessions,online,lastEvent,auditEnabled,ctxMenu,ctxSession,editNode,modals,auditCmd,auditCountdown,cursorName,totalNodes,
+      zoom,panX,panY,onZoom,onPanStart,onPanMove,onPanEnd,countdown,sessionColor,sessionLabel,
+      getNode,nodeName,statusIcon,beadClass,shouldExpandPlan,getPlanSubtree,topNodes,reportText,
+      showCtxMenu,closeCtxMenu,ctxEdit,ctxReport,ctxMark,ctxTogglePin,ctxSaveNode,ctxDelete,openReport,
+      saveEdit,toggleAudit,auditAnswer,stopCountdown,advanceNow,archiveAll,resetAll }
   }
 }).mount('#app')
 </script>
