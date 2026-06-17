@@ -266,13 +266,9 @@ async function main() {
   // ---- PostToolUse / Stop / 其他事件 → 直接转发 ----
   await postJSON(`${SERVER_URL}/events`, event)
 
-  // A3 修复: Stop 事件 → 通知 server 清理会话
-  if (event.type === 'done') {
-    await postJSON(`${SERVER_URL}/cleanup`, {
-      sessionId: event.sessionId,
-      archive: true
-    })
-  }
+  // 注意: Stop 事件是 Claude 每次响应完就触发，不是会话结束！
+  // 不在 Stop 时清理，让 session 持久化。状态文件保留在磁盘。
+  // SessionEnd hook（如果注册）才应该清理。
 
   process.exit(0)
 }
