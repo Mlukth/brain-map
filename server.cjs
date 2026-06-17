@@ -817,7 +817,10 @@ const server = http.createServer((req, res) => {
     const text = formatContext(windowNodes, S.meta.cursor)
     const stalled = hasStalledNode(windowNodes)
     res.writeHead(200, {'Content-Type':'text/plain'})
-    return res.end(text + (stalled ? '\n[脑图] ⚠️ 有节点需要人工介入' : ''))
+    const extra = []
+    if (stalled) extra.push('[脑图] ⚠️ 有节点需要人工介入')
+    extra.push(`[脑图] session: ${S._sessionId || sid}`)
+    return res.end(text + (extra.length ? '\n' + extra.join('\n') : ''))
   }
 
   // /graph API
@@ -904,6 +907,7 @@ const server = http.createServer((req, res) => {
         const sessionId = params.sessionId || 'default'
         S = getOrCreateSession(sessionId)
         S.meta.sessionId = sessionId
+        if (params.cwd) S.meta.cwd = params.cwd  // 供 graph-helper 匹配
         deriveState()
         save()
         broadcast('graph-update', getMultiView())
