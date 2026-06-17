@@ -138,6 +138,21 @@ body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color
         </div>
       </div>
 
+      <!-- Fallback: chain 为空时平铺所有非 action 节点 -->
+      <div class="chain-row" v-if="sess.chain.length === 0 && sess.nodes.length > 0">
+        <div class="chain-label">全部</div>
+        <div class="chain-nodes">
+          <template v-for="(n, idx) in topNodes(sess)" :key="n.id">
+            <div class="bead-link" v-if="idx>0">→</div>
+            <div :class="beadClass(n.id, sess)" @click="openReport(n.id, sess)" @contextmenu.prevent="showCtxMenu($event, n.id, sess)">
+              <span class="icon">{{ statusIcon(n.id, sess) }}</span>
+              <span class="name">{{ nodeName(n.id, sess) }}</span>
+              <span class="cursor-dot" v-if="sess.meta.cursor === n.id"></span>
+            </div>
+          </template>
+        </div>
+      </div>
+
       <!-- 计划链泳道 -->
       <div class="chain-row" v-for="rid in (sess.planRoots || [])" :key="'p'+rid">
         <div class="chain-label">{{ getNode(rid, sess).name || '计划' }}</div>
@@ -316,6 +331,9 @@ createApp({
         n.type === 'action' ? 'branch' : 'action-active'
       )
     }
+    function topNodes(sess) {
+      return sess.nodes.filter(n => n.type !== 'action').sort((a,b) => (a.createdAt||'').localeCompare(b.createdAt||''))
+    }
     function shouldExpandPlan(rid, sess) {
       const n = getNode(rid, sess)
       return n.status === 'active' || n.status === 'done' || n.status === 'failed'
@@ -469,7 +487,7 @@ createApp({
 
     return { state, sessions, online, lastEvent, auditEnabled, ctxMenu, ctxSession, editNode, modals, auditCmd, auditCountdown, cursorName, totalNodes,
       zoom, panX, panY, onZoom, onPanStart, onPanMove, onPanEnd, countdown, sessionColor, sessionLabel,
-      getNode, nodeName, statusIcon, beadClass, shouldExpandPlan, getPlanSubtree, reportText,
+      getNode, nodeName, statusIcon, beadClass, shouldExpandPlan, getPlanSubtree, topNodes, reportText,
       showCtxMenu, closeCtxMenu, ctxEdit, ctxReport, ctxMark, ctxTogglePin, ctxSaveNode, ctxDelete, openReport,
       saveEdit, toggleAudit, auditAnswer, stopCountdown, advanceNow, archiveAll, resetAll }
   }
