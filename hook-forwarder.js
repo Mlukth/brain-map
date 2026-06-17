@@ -218,7 +218,8 @@ async function main() {
       const state = await getText(`${SERVER_URL}/state`)
       if (state) {
         const S = JSON.parse(state)
-        auditEnabled = S.meta?.auditEnabled === true
+        // 兼容新旧格式: 新格式从 sessions[0].meta 读，旧格式从 meta 读
+        auditEnabled = (S.multiSession ? S.sessions?.[0]?.meta?.auditEnabled : S.meta?.auditEnabled) === true
       }
     } catch (e) {}
 

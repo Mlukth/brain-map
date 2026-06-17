@@ -20,23 +20,21 @@ function defaultState() {
   return { nodes: [], links: [], taskLines: {}, chain: [], planRoots: [], meta: { auditEnabled: false, planMode: false, currentPlanIndex: 0 } }
 }
 
+// 当前活跃 session 的快捷引用（每次 handleEvent/handleGraphAction 会更新）
 let S = defaultState()
-let CURRENT_STATE_FILE = null
 
-function save() {
-  if (S._stateFile) {
-    S.meta.lastUpdate = new Date().toISOString()
-    fs.writeFileSync(S._stateFile, JSON.stringify(S, null, 2))
-  } else if (CURRENT_STATE_FILE) {
-    S.meta.lastUpdate = new Date().toISOString()
-    fs.writeFileSync(CURRENT_STATE_FILE, JSON.stringify(S, null, 2))
+function save(state) {
+  const target = state || S
+  if (target._stateFile) {
+    target.meta.lastUpdate = new Date().toISOString()
+    fs.writeFileSync(target._stateFile, JSON.stringify(target, null, 2))
   }
 }
 
 // ============ 多会话管理 ============
 const sessions = new Map()  // sessionId → State
 
-function getOrCreateSession(sessionId, cwd) {
+function getOrCreateSession(sessionId) {
   if (!sessionId || sessionId === 'unknown') sessionId = 'default'
 
   if (sessions.has(sessionId)) return sessions.get(sessionId)
@@ -72,12 +70,6 @@ function getOrCreateSession(sessionId, cwd) {
   state._sessionId = sessionId
   sessions.set(sessionId, state)
   return state
-}
-
-function saveSession(state) {
-  if (!state || !state._stateFile) return
-  state.meta.lastUpdate = new Date().toISOString()
-  fs.writeFileSync(state._stateFile, JSON.stringify(state, null, 2))
 }
 
 function getMultiView() {
@@ -324,8 +316,7 @@ function broadcast(evt, data) {
 function handleEvent(evt) {
   // 多会话路由: cwd 映射保证同目录事件进同一条链
   const sessionId = evt.sessionId || 'default'
-  S = getOrCreateSession(sessionId, evt.cwd)
-  CURRENT_STATE_FILE = S._stateFile
+  S = getOrCreateSession(sessionId)
   const now = new Date().toISOString()
 
   switch (evt.type) {
@@ -837,10 +828,7 @@ const server = http.createServer((req, res) => {
       try {
         const action = JSON.parse(body)
         // 会话路由: 如果请求带了 sessionId，切换到对应会话
-        if (action.sessionId) {
-          S = getOrCreateSession(action.sessionId)
-          CURRENT_STATE_FILE = S._stateFile
-        }
+        if (action.sessionId) S = getOrCreateSession(action.sessionId)
         const result = handleGraphAction(action, res)
         res.writeHead(result.ok ? 200 : 400, {'Content-Type':'application/json'})
         res.end(JSON.stringify(result))
@@ -882,11 +870,11 @@ const server = http.createServer((req, res) => {
     req.on('end', () => {
       try {
         const params = JSON.parse(body || '{}')
-        S.meta.auditEnabled = params.enabled !== undefined ? params.enabled : !S.meta.auditEnabled
-        save()
-        broadcast('graph-update', getMultiView())
+        // 审计是全局开关，应用到所有 session
+        const enabled = params.enabled !== undefined ? params.enabled : !(S.meta.auditEnabled)
+        sessions.forEach(state => { state.meta.auditEnabled = enabled; save(state) })
         res.writeHead(200, {'Content-Type':'application/json'})
-        res.end(JSON.stringify({ok:true, auditEnabled: S.meta.auditEnabled}))
+        res.end(JSON.stringify({ok:true, auditEnabled: enabled}))
       } catch(e) {
         res.writeHead(400, {'Content-Type':'application/json'})
         res.end(JSON.stringify({ok:false, error:e.message}))
@@ -914,8 +902,7 @@ const server = http.createServer((req, res) => {
       try {
         const params = JSON.parse(body || '{}')
         const sessionId = params.sessionId || 'default'
-        S = getOrCreateSession(sessionId, params.cwd)
-        CURRENT_STATE_FILE = S._stateFile
+        S = getOrCreateSession(sessionId)
         S.meta.sessionId = sessionId
         deriveState()
         save()
@@ -945,13 +932,10 @@ const server = http.createServer((req, res) => {
         if (fs.existsSync(file)) fs.unlinkSync(file)
         sessions.delete(sid)
         if (sessions.size > 0) {
-          // 切到第一个剩余 session
           const first = sessions.values().next().value
           S = first
-          CURRENT_STATE_FILE = first._stateFile
         } else {
           S = defaultState()
-          CURRENT_STATE_FILE = null
         }
         broadcast('graph-update', getMultiView())
         res.writeHead(200, {'Content-Type':'application/json'})
@@ -965,12 +949,15 @@ const server = http.createServer((req, res) => {
   }
 
   if (req.url === '/reset' && req.method === 'POST') {
-    S = defaultState(); save(); broadcast('graph-update', getMultiView())
+    sessions.clear()
+    S = defaultState()
+    broadcast('graph-update', getMultiView())
     return res.end(JSON.stringify({ok:true}))
   }
   if (req.url === '/health') {
+    let totalNodes = 0; sessions.forEach(s => totalNodes += s.nodes.length)
     res.writeHead(200, {'Content-Type':'application/json'})
-    return res.end(JSON.stringify({ok:true,nodes:S.nodes.length,clients:clients.length,cursor:S.meta.cursor}))
+    return res.end(JSON.stringify({ok:true,nodes:totalNodes,sessions:sessions.size,clients:clients.length}))
   }
 
   // ============ 审计阻塞端点 ============
