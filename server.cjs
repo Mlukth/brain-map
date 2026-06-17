@@ -36,8 +36,9 @@ function save() {
 // ============ 多会话管理 ============
 const sessions = new Map()  // sessionId → State
 
-function getOrCreateSession(sessionId) {
-  if (!sessionId) sessionId = 'default'
+function getOrCreateSession(sessionId, cwd) {
+  if (!sessionId || sessionId === 'unknown') sessionId = 'default'
+
   if (sessions.has(sessionId)) return sessions.get(sessionId)
 
   const file = stateFile(sessionId)
@@ -321,9 +322,9 @@ function broadcast(evt, data) {
 
 // ============ 事件处理 ============
 function handleEvent(evt) {
-  // 多会话路由: 按 sessionId 加载对应状态
+  // 多会话路由: cwd 映射保证同目录事件进同一条链
   const sessionId = evt.sessionId || 'default'
-  S = getOrCreateSession(sessionId)
+  S = getOrCreateSession(sessionId, evt.cwd)
   CURRENT_STATE_FILE = S._stateFile
   const now = new Date().toISOString()
 
@@ -913,7 +914,7 @@ const server = http.createServer((req, res) => {
       try {
         const params = JSON.parse(body || '{}')
         const sessionId = params.sessionId || 'default'
-        S = getOrCreateSession(sessionId)
+        S = getOrCreateSession(sessionId, params.cwd)
         CURRENT_STATE_FILE = S._stateFile
         S.meta.sessionId = sessionId
         deriveState()

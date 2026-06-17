@@ -89,8 +89,10 @@ function openBrowser() {
 // ============ 事件规范化 ============
 function normalize(payload) {
   const hookName = payload.hook_event_name
+  // 优先用 Claude Code 内置的 CLAUDE_SESSION_ID（环境变量），fallback 到 payload.session_id
+  const sessionId = process.env.CLAUDE_SESSION_ID || payload.session_id || 'unknown'
   const base = {
-    sessionId: payload.session_id || 'unknown',
+    sessionId: sessionId,
     cwd: payload.cwd || '',
     rawPayload: payload
   }
