@@ -126,6 +126,20 @@ chain[] 和 links[] 由 deriveState() 从树推导，不再手动维护
 
 ## 待讨论/未完成
 
+### ⚠️ CLI 实际忽视计划链（2026-06-18 确认）
+- **现象**：实际运行中，Claude Code 在对话里**不会主动**创建计划链节点或遵循计划链规则
+- **根因**：
+  1. Claude 不知道自己的 sessionId → 调 `/graph` 时可能写到别的 CLI 的链
+  2. 没有明确的触发机制让 Claude 知道"现在该建计划链了"
+  3. 计划链的创建依赖 Claude **主动**调 `/graph` API，但 Claude 默认不会这样做
+  4. hook 层只负责记录（prompt→goal），不负责规划（goal→plan chain）
+- **当前缓解**：`graph-helper.cjs` 已提供，Claude 可通过 `node D:/scripts/brain-map/graph-helper.cjs '...'` 安全写计划链
+- **长期方向**：需要设计一套机制让 Claude **自动**在合适时机创建/更新计划链
+  - 方案A: Skill 封装 — 用户说"写计划"时调用 skill 自动建链
+  - 方案B: Hook 增强 — PreToolUse 时检查 prompt 是否含计划关键词，自动调 /graph
+  - 方案C: Claude 训练 — 在 system prompt 里注入计划链创建规则
+- **暂不修改**，先记录
+
 ### 第二层方法论：主链 vs 分支判定
 - **现状**：prompt → goal → 主链，tool → action → 分支
 - **问题**："查一下API文档"和"重构关联逻辑"目前都在主链上
@@ -297,6 +311,17 @@ curl -X POST http://127.0.0.1:47635/reset
 - **测试**：test-cursor.js(游标匹配)、test-init.cjs(初始化)、test-demo.cjs(全流程8项)
 - **计划链颜色表**（见BrainMap-计划链生命周期演示.vue）：灰色虚线(pending)→亮色白边+黄框(游标激活)→彩色(执行中action)→半透+✓(done)→红框+✗(failed)
 - **待完成**：倒计时自动递进(已讨论方案，未代码化)、平行泳道渲染、审计弹窗真实触发验证
+
+### 2026-06-17~18（第9次）— v2.2 多CLI修缮 + 渲染增强
+- **多CLI架构完工**：session_id 路由验证通过，每个 CLI 窗口独立泳道
+- **致命bug修复**：Stop事件每次Claude响应完就触发→误调/cleanup删session→已移除
+- **代码审计**：移除 CURRENT_STATE_FILE/cwd参数/saveSession 等死代码
+- **渲染增强**：attempt徽章(左下)+失败警告红点(左上脉冲)+hover浮窗预览attempts列表
+- **graph-helper.cjs**：Claude安全写计划链的辅助脚本，自动根据cwd匹配session
+- **测试组件**：ChainBranch-ABCD.vue, DashboardView.vue, HoverDashboard.vue
+- **确认问题**：CLI实际使用中忽视计划链，Claude不会主动创建计划链节点（记录在案，暂不修改）
+- **教训**：cwd注册表在同目录多窗口下导致session数据污染，已彻底移除
+- **重要修复**：hook-forwarder审计状态读取兼容新旧/state格式
 
 ### 2026-06-16（第8次）— ETT-mobile v2.0 改造实战，暴露两个问题
 
