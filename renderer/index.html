@@ -88,6 +88,22 @@ body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color
 .cd-timer{font-size:28px;font-weight:900;color:#fac858;margin-bottom:8px}
 .cd-bar-bg{height:6px;background:#30363d;border-radius:3px;overflow:hidden;margin-bottom:16px}
 .cd-bar-fill{height:100%;background:linear-gradient(90deg,#58a6ff,#3fb950);border-radius:3px;transition:width 1s linear}
+
+/* ===== v2.2: attempt徽章 + hover预览 ===== */
+.att-badge{position:absolute;bottom:-3px;left:-3px;font-size:7px;font-weight:900;padding:1px 5px;border-radius:6px;z-index:3;min-width:18px;text-align:center}
+.att-badge.ok{background:#1a3a1a;color:#3fb950;border:1px solid #2d5a2d}
+.att-badge.warn{background:#3d1a1a;color:#f85149;border:1px solid #5a2d2d}
+.warn-dot{position:absolute;top:-4px;left:-4px;width:15px;height:15px;border-radius:8px;background:#f85149;color:#fff;font-size:9px;font-weight:900;display:flex;align-items:center;justify-content:center;z-index:5;animation:warnPulse 2s ease-in-out infinite}
+@keyframes warnPulse{0%,100%{box-shadow:0 0 0 0 rgba(248,81,73,.4)}50%{box-shadow:0 0 0 6px rgba(248,81,73,0)}}
+.hover-tip{position:fixed;background:#161b22;border:1px solid #30363d;border-radius:10px;z-index:100;min-width:260px;max-width:320px;box-shadow:0 10px 32px rgba(0,0,0,.6);pointer-events:auto;font-size:10px}
+.hover-tip .ht-head{display:flex;align-items:center;gap:6px;padding:8px 12px;border-bottom:1px solid #30363d;font-size:11px;font-weight:700;color:#fff}
+.hover-tip .ht-body{padding:8px 12px;max-height:220px;overflow-y:auto;line-height:1.5}
+.hover-tip .ht-att-row{display:flex;align-items:center;gap:5px;padding:3px 0;font-size:10px}
+.hover-tip .ht-dot{width:6px;height:6px;border-radius:3px;flex-shrink:0}
+.hover-tip .ht-dot.ok{background:#3fb950}.hover-tip .ht-dot.fail{background:#f85149}.hover-tip .ht-dot.pend{background:#fac858}
+.hover-tip .ht-verdict{font-weight:700;margin-left:auto}.hover-tip .ht-verdict.ok{color:#3fb950}.hover-tip .ht-verdict.fail{color:#f85149}.hover-tip .ht-verdict.pend{color:#fac858}
+.hover-tip .ht-result{margin-top:4px;padding:5px 8px;background:#0d1520;border-radius:5px;color:#3fb950;font-size:9px}
+.hover-tip .ht-foot{padding:6px 12px;border-top:1px solid #30363d;color:#484f58;font-size:8px;text-align:center}
 </style>
 </head>
 <body>
@@ -123,11 +139,14 @@ body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color
         <div class="chain-nodes">
           <template v-for="(cid, idx) in sess.chain" :key="cid">
             <div class="bead-link" v-if="idx>0">→</div>
-            <div :class="beadClass(cid, sess)" @click="openReport(cid, sess)" @contextmenu.prevent="showCtxMenu($event, cid, sess)">
+            <div :class="beadClass(cid, sess)" @click="openReport(cid, sess)" @contextmenu.prevent="showCtxMenu($event, cid, sess)"
+              @mouseenter="showHoverTip($event, cid, sess)" @mouseleave="leaveBead">
               <span class="icon">{{ statusIcon(cid, sess) }}</span>
               <span class="name">{{ nodeName(cid, sess) }}</span>
               <span class="note-preview" v-if="getNode(cid, sess).notes">{{ getNode(cid, sess).notes.substring(0,12) }}…</span>
               <span class="cursor-dot" v-if="sess.meta.cursor === cid"></span>
+              <span v-if="getAttemptInfo(cid, sess)" class="att-badge" :class="getAttemptInfo(cid, sess).fail>0?'warn':'ok'">{{ getAttemptInfo(cid, sess).ok }}/{{ getAttemptInfo(cid, sess).total }}</span>
+              <span v-if="getAttemptInfo(cid, sess)&&getAttemptInfo(cid, sess).fail>0" class="warn-dot">!</span>
             </div>
           </template>
         </div>
@@ -139,10 +158,13 @@ body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color
         <div class="chain-nodes">
           <template v-for="(n, idx) in topNodes(sess)" :key="n.id">
             <div class="bead-link" v-if="idx>0">→</div>
-            <div :class="beadClass(n.id, sess)" @click="openReport(n.id, sess)" @contextmenu.prevent="showCtxMenu($event, n.id, sess)">
+            <div :class="beadClass(n.id, sess)" @click="openReport(n.id, sess)" @contextmenu.prevent="showCtxMenu($event, n.id, sess)"
+              @mouseenter="showHoverTip($event, n.id, sess)" @mouseleave="leaveBead">
               <span class="icon">{{ statusIcon(n.id, sess) }}</span>
               <span class="name">{{ nodeName(n.id, sess) }}</span>
               <span class="cursor-dot" v-if="sess.meta.cursor === n.id"></span>
+              <span v-if="getAttemptInfo(n.id, sess)" class="att-badge" :class="getAttemptInfo(n.id, sess).fail>0?'warn':'ok'">{{ getAttemptInfo(n.id, sess).ok }}/{{ getAttemptInfo(n.id, sess).total }}</span>
+              <span v-if="getAttemptInfo(n.id, sess)&&getAttemptInfo(n.id, sess).fail>0" class="warn-dot">!</span>
             </div>
           </template>
         </div>
@@ -153,19 +175,25 @@ body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color
         <div class="chain-label">{{ getNode(rid, sess).name || '计划' }}</div>
         <div>
           <div class="chain-nodes">
-            <div :class="beadClass(rid, sess)" @click="openReport(rid, sess)" @contextmenu.prevent="showCtxMenu($event, rid, sess)">
+            <div :class="beadClass(rid, sess)" @click="openReport(rid, sess)" @contextmenu.prevent="showCtxMenu($event, rid, sess)"
+              @mouseenter="showHoverTip($event, rid, sess)" @mouseleave="leaveBead">
               <span class="icon">{{ statusIcon(rid, sess) }}</span>
               <span class="name">{{ nodeName(rid, sess) }}</span>
               <span class="cursor-dot" v-if="sess.meta.cursor === rid"></span>
+              <span v-if="getAttemptInfo(rid, sess)" class="att-badge" :class="getAttemptInfo(rid, sess).fail>0?'warn':'ok'">{{ getAttemptInfo(rid, sess).ok }}/{{ getAttemptInfo(rid, sess).total }}</span>
+              <span v-if="getAttemptInfo(rid, sess)&&getAttemptInfo(rid, sess).fail>0" class="warn-dot">!</span>
             </div>
           </div>
           <div class="branch-area" v-if="shouldExpandPlan(rid, sess)">
             <template v-for="cid in getPlanSubtree(rid, sess)" :key="cid">
-              <div :class="beadClass(cid, sess)" @click="openReport(cid, sess)" @contextmenu.prevent="showCtxMenu($event, cid, sess)">
+              <div :class="beadClass(cid, sess)" @click="openReport(cid, sess)" @contextmenu.prevent="showCtxMenu($event, cid, sess)"
+                @mouseenter="showHoverTip($event, cid, sess)" @mouseleave="leaveBead">
                 <span class="icon">{{ statusIcon(cid, sess) }}</span>
                 <span class="name">{{ nodeName(cid, sess) }}</span>
                 <span class="note-preview" v-if="getNode(cid, sess).notes">{{ getNode(cid, sess).notes.substring(0,10) }}…</span>
                 <span class="cursor-dot" v-if="sess.meta.cursor === cid"></span>
+                <span v-if="getAttemptInfo(cid, sess)" class="att-badge" :class="getAttemptInfo(cid, sess).fail>0?'warn':'ok'">{{ getAttemptInfo(cid, sess).ok }}/{{ getAttemptInfo(cid, sess).total }}</span>
+                <span v-if="getAttemptInfo(cid, sess)&&getAttemptInfo(cid, sess).fail>0" class="warn-dot">!</span>
               </div>
               <div class="bead-link">→</div>
             </template>
@@ -220,6 +248,33 @@ body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color
     <div class="btns"><button class="btn danger" @click="auditAnswer(false)">❌ 拒绝</button><button class="btn" style="background:#238636" @click="auditAnswer(true)">✅ 允许</button></div>
     <div class="audit-countdown">{{ auditCountdown }}s 后自动拒绝</div>
   </div>
+  <!-- v2.2: hover 预览浮窗 -->
+  <div v-if="hoverTip.show" class="hover-tip" :style="{left:hoverTip.x+'px',top:hoverTip.y+'px'}"
+    @mouseenter="enterHoverTip" @mouseleave="leaveHoverTip">
+    <div class="ht-head">
+      <span>{{ statusIcon(hoverTip.nodeId, hoverTip.sess) }}</span>
+      {{ hoverTip.node.name }}
+    </div>
+    <div class="ht-body">
+      <div v-if="hoverTip.attInfo" style="margin-bottom:4px;color:#8b949e;font-size:9px">
+        尝试方案 ({{ hoverTip.attInfo.ok }}/{{ hoverTip.attInfo.total }} 成功)
+      </div>
+      <div v-for="(att,ai) in (hoverTip.attInfo?.list||[])" :key="ai" class="ht-att-row">
+        <span :class="['ht-dot',att.verdict==='success'?'ok':att.verdict==='failed'?'fail':'pend']"></span>
+        <span style="color:#8b949e">#{{ ai+1 }}</span>
+        <span style="color:#c9d1d9;flex:1">{{ att.approach || '(未命名方案)' }}</span>
+        <span :class="['ht-verdict',att.verdict==='success'?'ok':att.verdict==='failed'?'fail':'pend']">
+          {{ att.verdict==='success'?'✓':att.verdict==='failed'?'✗':'⋯' }}
+        </span>
+      </div>
+      <div v-if="hoverTip.node.result?.summary" class="ht-result">{{ hoverTip.node.result.summary }}</div>
+      <div v-if="!hoverTip.attInfo" style="color:#8b949e;font-size:9px">
+        {{ hoverTip.node.notes ? '📝 '+hoverTip.node.notes.substring(0,60) : '无 attempt 记录，点击查看详情' }}
+      </div>
+    </div>
+    <div class="ht-foot">点击珠子查看完整报告</div>
+  </div>
+
   <div v-show="countdown.show" class="countdown-overlay">
     <div class="cd-box">
       <div class="cd-icon">🔄</div>
@@ -311,6 +366,38 @@ createApp({
       if (!sess || !sess.nodes) return []
       return sess.nodes.filter(n => n.type !== 'action').sort((a,b) => (a.createdAt||'').localeCompare(b.createdAt||''))
     }
+    // v2.2: attempt 徽章信息
+    function getAttemptInfo(id, sess) {
+      const n = getNode(id, sess)
+      const atts = n.result?.attempts
+      if (!atts || atts.length === 0) return null
+      const ok = atts.filter(a => a.verdict === 'success').length
+      const fail = atts.filter(a => a.verdict === 'failed').length
+      return { total: atts.length, ok, fail, list: atts, result: n.result }
+    }
+    // v2.2: hover 预览
+    const hoverTip = ref({show:false,x:0,y:0,node:null,sess:null,attInfo:null})
+    let htTimer = null
+    function showHoverTip(e, nodeId, sess) {
+      clearTimeout(htTimer)
+      const bead = e.currentTarget
+      const r = bead.getBoundingClientRect()
+      hoverTip.value = {
+        show:true,
+        x: Math.max(8, Math.min(r.left + r.width/2 - 140, window.innerWidth - 290)),
+        y: r.bottom + 4,
+        node: getNode(nodeId, sess), sess, nodeId,
+        attInfo: getAttemptInfo(nodeId, sess)
+      }
+    }
+    function leaveBead() {
+      htTimer = setTimeout(() => {
+        if (!hoverTip.value._onPanel) hoverTip.value = {show:false,x:0,y:0,node:null,sess:null,attInfo:null}
+      }, 120)
+    }
+    function enterHoverTip() { clearTimeout(htTimer); hoverTip.value._onPanel = true }
+    function leaveHoverTip() { hoverTip.value._onPanel = false; hoverTip.value = {show:false,x:0,y:0,node:null,sess:null,attInfo:null} }
+
     function shouldExpandPlan(rid, sess) {
       const n = getNode(rid, sess)
       return n.status==='active'||n.status==='done'||n.status==='failed'
@@ -428,7 +515,8 @@ createApp({
 
     return { state,sessions,online,lastEvent,auditEnabled,ctxMenu,ctxSession,editNode,modals,auditCmd,auditCountdown,cursorName,totalNodes,
       zoom,panX,panY,onZoom,onPanStart,onPanMove,onPanEnd,countdown,sessionColor,sessionLabel,
-      getNode,nodeName,statusIcon,beadClass,shouldExpandPlan,getPlanSubtree,topNodes,reportText,
+      getNode,nodeName,statusIcon,beadClass,getAttemptInfo,shouldExpandPlan,getPlanSubtree,topNodes,reportText,
+      hoverTip,showHoverTip,leaveBead,enterHoverTip,leaveHoverTip,
       showCtxMenu,closeCtxMenu,ctxEdit,ctxReport,ctxMark,ctxTogglePin,ctxSaveNode,ctxDelete,openReport,
       saveEdit,toggleAudit,auditAnswer,stopCountdown,advanceNow,archiveAll,resetAll }
   }
