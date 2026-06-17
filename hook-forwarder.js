@@ -3,7 +3,7 @@
 //   "command": "node \"D:/scripts/brain-map/hook-forwarder.js\""
 // 通信方式：stdin 接收 Claude Code 事件 JSON → HTTP POST 到 Brain Map server
 
-import { readFileSync, existsSync } from 'fs'
+import { readFileSync, existsSync, appendFileSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { execSync } from 'child_process'
