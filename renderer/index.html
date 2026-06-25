@@ -46,6 +46,8 @@ body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color
 .bead.plan-active::after{content:'';position:absolute;inset:-8px;border-radius:50%;border:2px solid rgba(250,200,88,.3);animation:ringPulse 2s ease-out infinite;pointer-events:none}
 @keyframes ringPulse{0%,100%{transform:scale(1);opacity:.4}50%{transform:scale(1.2);opacity:.8}}
 .bead.plan-done{width:48px;height:48px;min-width:48px;min-height:48px;background:linear-gradient(135deg,#1a2a1a,#1a241a);border:2px solid #2d4a2d;color:#768390;opacity:.55;font-size:12px}
+.bead.plan-pending-audit{width:62px;height:62px;min-width:62px;min-height:62px;background:linear-gradient(135deg,#2d2a1a,#24201a);border:2px dashed #fac858;color:#fac858;font-size:10px;animation:pulseAudit 2s ease-in-out infinite}
+@keyframes pulseAudit{0%,100%{box-shadow:0 0 0 0 rgba(250,200,88,.3)}50%{box-shadow:0 0 0 8px rgba(250,200,88,0)}}
 .bead.plan-failed{width:60px;height:60px;min-width:60px;min-height:60px;background:linear-gradient(135deg,#2d1a1a,#241a1a);border:3px solid #f85149;color:#faa;font-size:9px;box-shadow:0 0 10px rgba(248,81,73,.2)}
 .bead.action-active{width:46px;height:46px;min-width:46px;min-height:46px;background:linear-gradient(135deg,#1a3a2a,#1a3322);border:2px solid #3fb950;color:#7ee787;font-size:8px}
 .bead.action-done{width:38px;height:38px;min-width:38px;min-height:38px;background:linear-gradient(135deg,#1a222a,#1a1e24);border:1px solid #2d3a2d;color:#444;opacity:.35;font-size:8px}
@@ -111,10 +113,15 @@ body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color
   <div class="topbar">
     <span class="topbar-title">🧠 Brain Map v2.1</span>
     <div class="topbar-right">
-      <label class="audit-toggle" title="审计开关">
+      <label class="audit-toggle" title="工具调用审计">
         <input type="checkbox" v-model="auditEnabled" @change="toggleAudit">
         <span class="audit-switch"></span>
-        <span class="audit-label">审计</span>
+        <span class="audit-label">Tool审计</span>
+      </label>
+      <label class="audit-toggle" title="节点完成时人工审计">
+        <input type="checkbox" v-model="nodeAuditEnabled" @change="toggleNodeAudit">
+        <span class="audit-switch"></span>
+        <span class="audit-label">节点审计</span>
       </label>
       <button class="btn" @click="archiveAll">💾 归档</button>
       <button class="btn danger" @click="resetAll">🗑️ 清空</button>
@@ -268,6 +275,10 @@ body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color
         </span>
       </div>
       <div v-if="hoverTip.node.result?.summary" class="ht-result">{{ hoverTip.node.result.summary }}</div>
+      <div v-if="hoverTip.node.evidence" style="margin-top:4px;padding:5px 8px;background:#0d1520;border-radius:5px;font-size:9px;color:#7ee787">📋 验证: {{ hoverTip.node.evidence }}</div>
+      <div v-if="hoverTip.node.checks?.length" style="margin-top:2px">
+        <div v-for="(ch,ci) in hoverTip.node.checks" :key="ci" style="font-size:8px;color:#58a6ff;padding:1px 0">✓ {{ ch }}</div>
+      </div>
       <div v-if="!hoverTip.attInfo" style="color:#8b949e;font-size:9px">
         {{ hoverTip.node.notes ? '📝 '+hoverTip.node.notes.substring(0,60) : '无 attempt 记录，点击查看详情' }}
       </div>
@@ -301,6 +312,7 @@ createApp({
     let panning=false, panStartX=0, panStartY=0, spaceDown=false
     const countdown = ref({show:false,remaining:0,total:0,nextName:''})
     const auditEnabled = ref(false)
+    const nodeAuditEnabled = ref(false)
     const ctxMenu = ref({show:false,nodeId:'',x:0,y:0})
     const ctxSession = ref(null)
     const editNode = ref({})
@@ -353,6 +365,7 @@ createApp({
         n.type==='root'?'root':
         n.planMode&&n.status==='failed'?'plan-failed':
         n.planMode&&n.status==='active'?'plan-active':
+        n.planMode&&n.status==='pending_audit'?'plan-pending-audit':
         n.planMode&&n.status==='done'?'plan-done':
         n.planMode?'plan-pending':
         n.status==='failed'?'action-failed':
@@ -428,6 +441,8 @@ createApp({
       t += '\n\n'
       if (n.notes) t += '备注: '+n.notes+'\n\n'
       if (n.successCriteria) t += '成功标准: '+n.successCriteria+'\n\n'
+      if (n.evidence) t += '验证证据: '+n.evidence+'\n'
+      if (n.checks?.length) { t += '验证项:\n'; n.checks.forEach(c=>t+='  ✓ '+c+'\n') }
       if (n.result) {
         if (n.result.outcome) t += '结果: '+n.result.outcome+'\n'
         if (n.result.summary) t += '摘要: '+n.result.summary+'\n'
@@ -465,6 +480,7 @@ createApp({
 
     // 审计 / 倒计时
     async function toggleAudit() { await fetch('/audit-toggle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:auditEnabled.value})}) }
+    async function toggleNodeAudit() { await fetch('/audit-toggle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nodeAudit:nodeAuditEnabled.value})}) }
     function auditAnswer(approved) { if(auditTimer){clearInterval(auditTimer);auditTimer=null}; modals.value.audit=false; fetch('/audit-response',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({requestId:auditRequestId.value,approved})}) }
     async function stopCountdown() { fetch('/graph',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'stop-countdown'})}); countdown.value={show:false,remaining:0,total:0,nextName:''} }
     async function advanceNow() { fetch('/graph',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'advance-plan'})}); countdown.value={show:false,remaining:0,total:0,nextName:''} }

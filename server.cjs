@@ -33,6 +33,7 @@ function save(state) {
 
 // ============ 多会话管理 ============
 const sessions = new Map()  // sessionId → State
+let _nodeAuditEnabled = false  // 全局节点审计开关
 
 function getOrCreateSession(sessionId) {
   if (!sessionId || sessionId === 'unknown') sessionId = 'default'
@@ -598,8 +599,19 @@ function handleGraphAction(action, res) {
     case 'mark-done': {
       const node = S.nodes.find(n => n.id === action.nodeId)
       if (!node) { result.ok = false; result.error = '节点不存在'; break }
-      node.status = 'done'
-      node.completedAt = now
+      // 验证约束
+      if (!action.verified) { result.ok = false; result.error = '需要 verified:true + evidence + checks'; break }
+      node.evidence = action.evidence || ''
+      node.checks = action.checks || []
+      if (!node.attempts) node.attempts = []
+      node.attempts.push({approach:action.approach||'最终方案',verdict:'success',time:now,evidence:action.evidence||'',checks:action.checks||[]})
+      // 节点审计模式
+      if (_nodeAuditEnabled) {
+        node.status = 'pending_audit'; node.auditRequestedAt = now
+        result.pendingAudit = true; result.message = '节点待人工审计，请到脑图浏览器确认'
+      } else {
+        node.status = 'done'; node.completedAt = now
+      }
       if (action.auditResult) {
         if (!node.result) node.result = {}
         node.result.outcome = 'success'
@@ -619,6 +631,8 @@ function handleGraphAction(action, res) {
     case 'mark-failed': {
       const node = S.nodes.find(n => n.id === action.nodeId)
       if (!node) { result.ok = false; result.error = '节点不存在'; break }
+      if (!node.attempts) node.attempts = []
+      node.attempts.push({approach:action.approach||'尝试方案',verdict:'failed',time:now,reason:action.reason||'',checks:action.checks||[]})
       node.status = 'failed'
       if (!node.result) node.result = {}
       node.result.outcome = 'failure'
@@ -637,6 +651,57 @@ function handleGraphAction(action, res) {
       S.meta._countdown = null
       broadcast('event', { type:'countdown_cancelled' })
       result.ok = true
+      break
+    }
+
+    case 'audit-approve': {
+      const an = S.nodes.find(n => n.id === action.nodeId)
+      if (!an) { result.ok = false; result.error = '节点不存在'; break }
+      if (an.status !== 'pending_audit') { result.ok = false; result.error = '节点不在待审计状态'; break }
+      an.status = 'done'; an.completedAt = now; an.audited = true; an.auditedAt = now; an.auditedBy = 'human'
+      if (!an.result) an.result = {}
+      an.result.outcome = 'success'; an.result.auditNote = action.note || ''
+      result.ok = true; result.message = '审计通过'
+      if (S.planRoots && an.planMode && S.planRoots.includes(an.id)) {
+        const idx = S.planRoots.indexOf(an.id)
+        if (idx === (S.meta.currentPlanIndex||0) && idx < S.planRoots.length - 1) startCountdown(idx)
+      }
+      break
+    }
+    case 'audit-reject': {
+      const rn = S.nodes.find(n => n.id === action.nodeId)
+      if (!rn) { result.ok = false; result.error = '节点不存在'; break }
+      if (rn.status !== 'pending_audit') { result.ok = false; result.error = '节点不在待审计状态'; break }
+      rn.status = 'active'; rn.audited = true; rn.auditedAt = now; rn.auditedBy = 'human'
+      if (!rn.result) rn.result = {}
+      rn.result.outcome = 'rejected'; rn.result.rejectReason = action.reason || ''; rn.result.auditNote = action.note || ''
+      result.ok = true; result.message = '审计驳回，请补充'
+      break
+    }
+    case 'audit-approve': {
+      const node = S.nodes.find(n => n.id === action.nodeId)
+      if (!node) { result.ok = false; result.error = '节点不存在'; break }
+      if (node.status !== 'pending_audit') { result.ok = false; result.error = '不在待审计状态'; break }
+      node.status = 'done'; node.completedAt = now
+      node.audited = true; node.auditedAt = now; node.auditedBy = 'human'
+      if (!node.result) node.result = {}
+      node.result.outcome = 'success'; node.result.auditNote = action.note || ''
+      result.ok = true; result.message = '审计通过，节点完成'
+      if (S.planRoots && node.planMode && S.planRoots.includes(node.id)) {
+        const idx = S.planRoots.indexOf(node.id)
+        if (idx === (S.meta.currentPlanIndex||0) && idx < S.planRoots.length-1) startCountdown(idx)
+      }
+      break
+    }
+    case 'audit-reject': {
+      const node = S.nodes.find(n => n.id === action.nodeId)
+      if (!node) { result.ok = false; result.error = '节点不存在'; break }
+      if (node.status !== 'pending_audit') { result.ok = false; result.error = '不在待审计状态'; break }
+      node.status = 'active'; node.audited = true; node.auditedAt = now; node.auditedBy = 'human'
+      if (!node.result) node.result = {}
+      node.result.outcome = 'rejected'; node.result.rejectReason = action.reason || '未填写原因'
+      node.result.auditNote = action.note || ''
+      result.ok = true; result.message = '审计驳回，请补充需求后重新提交'
       break
     }
 
@@ -874,10 +939,11 @@ const server = http.createServer((req, res) => {
       try {
         const params = JSON.parse(body || '{}')
         // 审计是全局开关，应用到所有 session
-        const enabled = params.enabled !== undefined ? params.enabled : !(S.meta.auditEnabled)
-        sessions.forEach(state => { state.meta.auditEnabled = enabled; save(state) })
+        const enabled = params.enabled !== undefined ? params.enabled : (params.nodeAudit !== undefined ? S.meta.auditEnabled : !(S.meta.auditEnabled))
+        if (params.enabled !== undefined || params.nodeAudit === undefined) { sessions.forEach(state => { state.meta.auditEnabled = enabled; save(state) }) }
+        if (params.nodeAudit !== undefined) { _nodeAuditEnabled = params.nodeAudit; sessions.forEach(state => { state.meta.nodeAuditEnabled = params.nodeAudit; save(state) }) }
         res.writeHead(200, {'Content-Type':'application/json'})
-        res.end(JSON.stringify({ok:true, auditEnabled: enabled}))
+        res.end(JSON.stringify({ok:true, auditEnabled: enabled, nodeAuditEnabled: _nodeAuditEnabled}))
       } catch(e) {
         res.writeHead(400, {'Content-Type':'application/json'})
         res.end(JSON.stringify({ok:false, error:e.message}))
