@@ -345,3 +345,88 @@ curl -X POST http://127.0.0.1:47635/reset
   - 脑图侧：可能需要一个"进入计划模式"的标记，让 hook 知道这段时间创建的节点应该打 `planMode: true`
 - **与已有文档的关联**：[[#⚠️ Plan Mode 与脑图计划链未打通]] 已记录了技术层面的问题，本例是同一问题在实际使用中的具体表现
 - **重要经验**：本次工作流(需求讨论→方案文档→分期→测试→git)执行满意，考虑封装为Skill
+
+### 2026-06-25（第10次）— v2.3 节点审计系统
+
+#### 新增功能
+
+**1. mark-done 验证约束**
+- `mark-done` 必须携带 `verified:true` + `evidence`(验证证据) + `checks`(验证项列表)
+- 不带验证数据直接拒绝：`{"ok":false,"error":"需要 verified:true + evidence + checks"}`
+- 验证证据存储到节点：`node.evidence` / `node.checks` / `node.attempts`
+- 每次 mark-done 追加一条 attempt 记录(approach/verdict/evidence/checks)
+
+**2. 节点审计开关**
+- 浏览器顶栏新增双开关：`Tool审计`(原有PreToolUse阻塞) + `节点审计`(新增)
+- 节点审计开→mark-done变为`pending_audit`状态，须人工approve/reject
+- 节点审计关→mark-done直接`done`
+- 开关状态持久化到`.audit-config.json`，重启恢复
+- 实现：全局变量`_nodeAuditEnabled`(绕过session meta同步问题)
+- ⚠️ 已知问题：`sessions.forEach`设置session.meta后S变量不同步，改用全局变量
+
+**3. audit-approve / audit-reject 端点**
+- `POST /graph {"op":"audit-approve","nodeId":"xxx","note":"人工审计通过"}`
+  - 必须`pending_audit`状态才能approve
+  - 通过后：`status=done`, `auditedBy=human`, `result.outcome=success`
+  - 广播SSE事件`audit_approved`
+- `POST /graph {"op":"audit-reject","nodeId":"xxx","reason":"驳回原因","note":"备注"}`
+  - 驳回后：`status=active`, `auditedBy=human`, `result.outcome=rejected`, `result.rejectReason=原因`
+  - 记录failed attempt到`node.attempts`
+  - 广播SSE事件`audit_rejected`
+
+**4. mark-failed attempt记录**
+- `mark-failed`自动记录失败尝试：approach/verdict='failed'/reason/time
+
+**5. Renderer 增强**
+- `pending_audit`珠子：黄色虚线脉冲动画(`plan-pending-audit` CSS class)
+- Report弹窗：底部显示`✅通过`/`❌驳回`按钮(仅pending_audit状态)
+- 通过/驳回按钮携带`sessionId`参数
+- `nodeAuditEnabled`从state同步(页面加载+SSE更新)
+- Countdown overlay已禁用(`v-if="false"`,多链暂时不用)
+- evidence/checks展示在hover浮窗和report弹窗
+
+**6. 辅助脚本**
+- `check-audit-status.cjs`：查询所有session的rejected/pendingAudit/activePlan节点，Claude可主动调用检测驳回
+- `watch-audit.cjs`：SSE监听器，审计事件写入`.audit-events.jsonl`通知文件
+- `graph-helper.cjs`：复用现有脚本，mark-done支持verified/evidence/checks/approach参数
+
+#### 未达到的效果
+
+**1. Claude自动感知驳回(半完成)**
+- ✅ Claude可主动调用`check-audit-status.cjs`检测驳回
+- ✅ SSE广播`audit_rejected`事件
+- ❌ Claude不会自动响应驳回，需要用户手动告知或Claude主动检查
+- ❌ 无法达到小桌宠那种"点了立即有反应"的实时干预
+- **原因**：脑图→Claude Code的通信只有Hook系统(单向:CC→脑图)，缺少反向通道
+
+**2. Session管理混乱(未修复)**
+- `S`变量(模块级)到处被覆盖，sessionId传递不一致
+- graph-helper通过cwd匹配session，同目录多窗口时可能写错session
+- 多次testkill重启导致节点丢失
+- 两个session(default vs 25741e7c)节点创建位置不可预测
+- **根因**：JSON文件+Map+S变量三套数据，写入路径不一致
+
+**3. SQLite迁移(放弃)**
+- 尝试将存储从JSON迁移到SQLite(better-sqlite3/sql.js)
+- Windows原生编译失败，sql.js ESM/CJS兼容问题
+- **结论**：脑图生命周期=一个Claude Code窗口，JSON文件足够，SQLite过度设计
+
+**4. 审计闭环完整性(部分完成)**
+- ✅ 驳回→attempt记录
+- ✅ SSE广播
+- ✅ Claude检测脚本
+- ❌ Claude不会在无用户提示下自动读取驳回原因并重新提交
+- ❌ 驳回后"补做缺失工作→重提"的闭环仍需人力驱动
+
+#### 文件变更
+- `server.cjs`：mark-done/mark-failed/audit-approve/audit-reject handler
+- `renderer/index.html`：双开关、pending_audit珠子、通过/驳回按钮、evidence展示
+- `check-audit-status.cjs`：新增
+- `watch-audit.cjs`：新增
+- `.audit-config.json`：新增(节点审计开关持久化)
+- `_废弃/旧脑图状态/`：38个旧session state文件移入
+
+#### 存储清理
+- 清理前：40+ state JSON文件, ~700KB
+- 清理后：2个活跃文件(25741e7c+default), 62KB
+- 旧文件移入`_废弃/旧脑图状态/`
