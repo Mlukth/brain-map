@@ -17,8 +17,14 @@ function stateFile(sessionId) {
 }
 
 function defaultState() {
-  return { nodes: [], links: [], taskLines: {}, chain: [], planRoots: [], meta: { auditEnabled: false, planMode: false, currentPlanIndex: 0 } }
+  // 从磁盘恢复节点审计开关
+  let nodeAudit = false
+  try { const cfg = JSON.parse(fs.readFileSync(STATE_DIR + '/.audit-config.json','utf-8')); nodeAudit = cfg.nodeAuditEnabled || false } catch(e) {}
+  return { nodes: [], links: [], taskLines: {}, chain: [], planRoots: [], meta: { auditEnabled: false, nodeAuditEnabled: nodeAudit, planMode: false, currentPlanIndex: 0 } }
 }
+
+// 启动时恢复全局节点审计开关
+try { const cfg = JSON.parse(fs.readFileSync(STATE_DIR + '/.audit-config.json','utf-8')); _nodeAuditEnabled = cfg.nodeAuditEnabled || false } catch(e) {}
 
 // 当前活跃 session 的快捷引用（每次 handleEvent/handleGraphAction 会更新）
 let S = defaultState()
@@ -941,7 +947,7 @@ const server = http.createServer((req, res) => {
         // 审计是全局开关，应用到所有 session
         const enabled = params.enabled !== undefined ? params.enabled : (params.nodeAudit !== undefined ? S.meta.auditEnabled : !(S.meta.auditEnabled))
         if (params.enabled !== undefined || params.nodeAudit === undefined) { sessions.forEach(state => { state.meta.auditEnabled = enabled; save(state) }) }
-        if (params.nodeAudit !== undefined) { _nodeAuditEnabled = params.nodeAudit; sessions.forEach(state => { state.meta.nodeAuditEnabled = params.nodeAudit; save(state) }) }
+        if (params.nodeAudit !== undefined) { _nodeAuditEnabled = params.nodeAudit; fs.writeFileSync(STATE_DIR+'/.audit-config.json', JSON.stringify({nodeAuditEnabled: params.nodeAudit})); sessions.forEach(state => { state.meta.nodeAuditEnabled = params.nodeAudit; save(state) }) }
         res.writeHead(200, {'Content-Type':'application/json'})
         res.end(JSON.stringify({ok:true, auditEnabled: enabled, nodeAuditEnabled: _nodeAuditEnabled}))
       } catch(e) {

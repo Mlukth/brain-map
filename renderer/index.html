@@ -209,6 +209,26 @@ body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color
       </div>
     </div>
 
+    <!-- 待审计节点区 -->
+    <div v-for="(sess, si) in sessions" :key="'audit'+sess.sessionId" class="session-swimlane" v-if="pendingAuditNodes(sess).length > 0" style="border-color:#fac858">
+      <div class="session-bar" style="background:#2d2a1a">
+        <span class="session-dot" style="background:#fac858"></span>
+        <span class="session-name">⚠ 待人工审计 ({{ pendingAuditNodes(sess).length }})</span>
+      </div>
+      <div class="chain-row">
+        <div class="chain-label">审计</div>
+        <div class="chain-nodes">
+          <template v-for="(n, idx) in pendingAuditNodes(sess)" :key="'pa'+n.id">
+            <div class="bead-link" v-if="idx>0">→</div>
+            <div :class="beadClass(n.id, sess)" @click="openReport(n.id, sess)" @mouseenter="showHoverTip($event, n.id, sess)" @mouseleave="leaveBead">
+              <span class="icon">⏳</span>
+              <span class="name">{{ nodeName(n.id, sess) }}</span>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+
     <div v-if="sessions.length === 0" class="empty-state">🧠 等待 Claude Code 会话开始...</div>
     </div>
   </div>
@@ -245,7 +265,11 @@ body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color
     <div class="modal-box">
       <h3>{{ getNode(ctxMenu.nodeId, ctxSession).name }} — 报告</h3>
       <div class="report-body">{{ reportText }}</div>
-      <div class="btns"><button class="btn" @click="modals.report=false">关闭</button></div>
+      <div class="btns">
+        <button v-if="getNode(ctxMenu.nodeId,ctxSession).status==='pending_audit'" class="btn danger" @click="auditReject">❌ 驳回</button>
+        <button v-if="getNode(ctxMenu.nodeId,ctxSession).status==='pending_audit'" class="btn" style="background:#238636" @click="auditApprove">✅ 通过</button>
+        <button class="btn" @click="modals.report=false">关闭</button>
+      </div>
     </div>
   </div>
   <div v-show="modals.audit" class="audit-modal">
@@ -286,13 +310,13 @@ body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:#0d1117;color
     <div class="ht-foot">点击珠子查看完整报告</div>
   </div>
 
-  <div v-show="countdown.show" class="countdown-overlay">
+  <div v-if="false" class="countdown-overlay">
     <div class="cd-box">
       <div class="cd-icon">🔄</div>
       <div class="cd-title">计划链已完成</div>
-      <div class="cd-next">下一条「{{ countdown.nextName }}」</div>
-      <div class="cd-timer">{{ countdown.remaining }}s 后自动开始</div>
-      <div class="cd-bar-bg"><div class="cd-bar-fill" :style="{width:(countdown.remaining/countdown.total*100)+'%'}"></div></div>
+      <div class="cd-next">下一条「{{ countdown.nextName || '—' }}」</div>
+      <div class="cd-timer">{{ countdown.remaining || 0 }}s 后自动开始</div>
+      <div class="cd-bar-bg"><div class="cd-bar-fill" :style="{width:((countdown.remaining||0)/(countdown.total||1)*100)+'%'}"></div></div>
       <div class="btns"><button class="btn danger" @click="stopCountdown">⏸ 暂停</button><button class="btn" style="background:#238636" @click="advanceNow">▶ 立即开始</button></div>
     </div>
   </div>
@@ -374,6 +398,10 @@ createApp({
         n.status==='shelved'?'shelved':
         n.type==='action'?'branch':'action-active'
       )
+    }
+    function pendingAuditNodes(sess) {
+      if (!sess || !sess.nodes) return []
+      return sess.nodes.filter(n => n.status === 'pending_audit')
     }
     function topNodes(sess) {
       if (!sess || !sess.nodes) return []
@@ -484,6 +512,8 @@ createApp({
     function auditAnswer(approved) { if(auditTimer){clearInterval(auditTimer);auditTimer=null}; modals.value.audit=false; fetch('/audit-response',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({requestId:auditRequestId.value,approved})}) }
     async function stopCountdown() { fetch('/graph',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'stop-countdown'})}); countdown.value={show:false,remaining:0,total:0,nextName:''} }
     async function advanceNow() { fetch('/graph',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'advance-plan'})}); countdown.value={show:false,remaining:0,total:0,nextName:''} }
+    async function auditApprove() { await fetch('/graph',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'audit-approve',nodeId:ctxMenu.value.nodeId,note:'人工审计通过'})}); modals.value.report = false }
+    async function auditReject() { const reason = prompt('驳回原因：'); if (!reason) return; await fetch('/graph',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'audit-reject',nodeId:ctxMenu.value.nodeId,reason,note:'人工驳回'})}); modals.value.report = false }
     async function archiveAll() { const r=await fetch('/archive',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})}); const j=await r.json(); alert('已归档 '+(j.count||0)+' 个节点') }
     async function resetAll() { if(!confirm('确定清空所有节点？'))return; await fetch('/reset',{method:'POST'}) }
 
@@ -531,10 +561,10 @@ createApp({
 
     return { state,sessions,online,lastEvent,auditEnabled,ctxMenu,ctxSession,editNode,modals,auditCmd,auditCountdown,cursorName,totalNodes,
       zoom,panX,panY,onZoom,onPanStart,onPanMove,onPanEnd,countdown,sessionColor,sessionLabel,
-      getNode,nodeName,statusIcon,beadClass,getAttemptInfo,shouldExpandPlan,getPlanSubtree,topNodes,reportText,
+      getNode,nodeName,statusIcon,beadClass,getAttemptInfo,shouldExpandPlan,getPlanSubtree,topNodes,pendingAuditNodes,reportText,
       hoverTip,showHoverTip,leaveBead,enterHoverTip,leaveHoverTip,
       showCtxMenu,closeCtxMenu,ctxEdit,ctxReport,ctxMark,ctxTogglePin,ctxSaveNode,ctxDelete,openReport,
-      saveEdit,toggleAudit,auditAnswer,stopCountdown,advanceNow,archiveAll,resetAll }
+      saveEdit,toggleAudit,toggleNodeAudit,nodeAuditEnabled,auditAnswer,auditApprove,auditReject,stopCountdown,advanceNow,archiveAll,resetAll }
   }
 }).mount('#app')
 </script>
