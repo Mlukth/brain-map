@@ -512,8 +512,8 @@ createApp({
     function auditAnswer(approved) { if(auditTimer){clearInterval(auditTimer);auditTimer=null}; modals.value.audit=false; fetch('/audit-response',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({requestId:auditRequestId.value,approved})}) }
     async function stopCountdown() { fetch('/graph',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'stop-countdown'})}); countdown.value={show:false,remaining:0,total:0,nextName:''} }
     async function advanceNow() { fetch('/graph',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'advance-plan'})}); countdown.value={show:false,remaining:0,total:0,nextName:''} }
-    async function auditApprove() { await fetch('/graph',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'audit-approve',nodeId:ctxMenu.value.nodeId,note:'人工审计通过'})}); modals.value.report = false }
-    async function auditReject() { const reason = prompt('驳回原因：'); if (!reason) return; await fetch('/graph',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'audit-reject',nodeId:ctxMenu.value.nodeId,reason,note:'人工驳回'})}); modals.value.report = false }
+    async function auditApprove() { const sid=ctxSession.value?.sessionId; await fetch('/graph',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'audit-approve',nodeId:ctxMenu.value.nodeId,note:'人工审计通过',sessionId:sid})}); modals.value.report = false }
+    async function auditReject() { const reason = prompt('驳回原因：'); if (!reason) return; const sid=ctxSession.value?.sessionId; await fetch('/graph',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'audit-reject',nodeId:ctxMenu.value.nodeId,reason,note:'人工驳回',sessionId:sid})}); modals.value.report = false }
     async function archiveAll() { const r=await fetch('/archive',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})}); const j=await r.json(); alert('已归档 '+(j.count||0)+' 个节点') }
     async function resetAll() { if(!confirm('确定清空所有节点？'))return; await fetch('/reset',{method:'POST'}) }
 
@@ -544,8 +544,13 @@ createApp({
     onMounted(() => {
       fetch('/state').then(r=>r.json()).then(s => {
         state.value = s
-        if (s.multiSession) auditEnabled.value = s.sessions?.[0]?.meta?.auditEnabled===true
-        else auditEnabled.value = s.meta?.auditEnabled===true
+        if (s.multiSession) {
+          auditEnabled.value = s.sessions?.[0]?.meta?.auditEnabled===true
+          nodeAuditEnabled.value = s.sessions?.[0]?.meta?.nodeAuditEnabled===true
+        } else {
+          auditEnabled.value = s.meta?.auditEnabled===true
+          nodeAuditEnabled.value = s.meta?.nodeAuditEnabled===true
+        }
       }).catch(()=>{})
       connectSSE()
     })

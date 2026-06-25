@@ -11,6 +11,9 @@ importers:
       electron:
         specifier: ^42.4.0
         version: 42.4.0
+      sql.js:
+        specifier: ^1.14.1
+        version: 1.14.1
 
 packages:
 
@@ -57,6 +60,9 @@ packages:
     resolution: {integrity: sha512-rUCObTnP32Q08R2uuIrt7r9PlEonuTmtuXYcW6s5kjdlj3xbnwe+21yXptAUYcMAABLkYYTtnmzb3w3EDZfueA==}
     engines: {node: '>=10'}
     hasBin: true
+
+  sql.js@1.14.1:
+    resolution: {integrity: sha512-gcj8zBWU5cFsi9WUP+4bFNXAyF1iRpA3LLyS/DP5xlrNzGmPIizUeBggKa8DbDwdqaKwUcTEnChtd2grWo/x/A==}
 
   sumchecker@3.0.1:
     resolution: {integrity: sha512-MvjXzkz/BOfyVDkG0oFOtBxHX2u3gKbMHIF/dXblZsgD3BWOFLmHovIpZY7BykJdAjcqRCBi1WYBNdEC9yI7vg==}
@@ -111,6 +117,8 @@ snapshots:
   progress@2.0.3: {}
 
   semver@7.8.4: {}
+
+  sql.js@1.14.1: {}
 
   sumchecker@3.0.1:
     dependencies:

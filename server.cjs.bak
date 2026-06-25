@@ -680,8 +680,6 @@ function handleGraphAction(action, res) {
       if (!rn) { result.ok = false; result.error = '节点不存在'; break }
       if (rn.status !== 'pending_audit') { result.ok = false; result.error = '节点不在待审计状态'; break }
       rn.status = 'active'; rn.audited = true; rn.auditedAt = now; rn.auditedBy = 'human'
-      if (!rn.attempts) rn.attempts = []
-      rn.attempts.push({approach:'人工审计',verdict:'failed',time:now,reason:action.reason||'未填写原因',checks:[]})
       if (!rn.result) rn.result = {}
       rn.result.outcome = 'rejected'; rn.result.rejectReason = action.reason || ''; rn.result.auditNote = action.note || ''
       result.ok = true; result.message = '审计驳回，请补充'
